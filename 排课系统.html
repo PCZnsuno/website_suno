@@ -1,0 +1,2509 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高中智能排课系统</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy: #0f1a2e;
+  --navy-light: #1a2a4a;
+  --navy-lighter: #253555;
+  --navy-dark: #0a1220;
+  --gold: #c8963e;
+  --gold-light: #d4a94e;
+  --gold-dark: #b08530;
+  --gold-glow: rgba(200,150,62,0.3);
+  --white: #f8f9fa;
+  --bg: #f4f1ec;
+  --bg-card: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f0f0f0;
+  --gray-200: #e0e0e0;
+  --gray-300: #ccc;
+  --gray-400: #999;
+  --gray-500: #666;
+  --gray-600: #444;
+  --text: #2c2c2c;
+  --text-secondary: #666;
+  --text-light: #999;
+  --danger: #c0392b;
+  --danger-light: #e74c3c;
+  --success: #27ae60;
+  --warning: #f39c12;
+  --info: #3498db;
+  --shadow-sm: 0 1px 3px rgba(15,26,46,0.08);
+  --shadow-md: 0 4px 12px rgba(15,26,46,0.1);
+  --shadow-lg: 0 8px 30px rgba(15,26,46,0.15);
+  --shadow-xl: 0 16px 48px rgba(15,26,46,0.2);
+  --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  --transition-fast: all 0.15s ease;
+  --font-serif: 'Noto Serif SC', 'SimSun', serif;
+  --font-garamond: 'Cormorant Garamond', 'Noto Serif SC', serif;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --navbar-h: 56px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font-serif);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  padding-top: calc(var(--navbar-h) + 6px);
+}
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--gray-100); }
+::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gray-400); }
+
+/* Animations */
+@keyframes slideUp { from { transform: translateY(24px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes fadeInScale { from { opacity:0; transform:scale(0.95); } to { opacity:1; transform:scale(1); } }
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+@keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-up { animation: slideUp 0.4s ease both; }
+.animate-fade { animation: fadeIn 0.3s ease both; }
+
+/* ===== NAVBAR ===== */
+.navbar {
+  position: fixed; top:0; left:0; right:0; z-index: 1000;
+  height: var(--navbar-h);
+  background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 50%, var(--navy-light) 100%);
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+  user-select: none;
+}
+.navbar-title {
+  font-family: var(--font-garamond);
+  font-size: 1.3rem; font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 2px;
+  white-space: nowrap;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  margin-right: 8px;
+}
+.navbar-sep { width:1px; height:28px; background: rgba(255,255,255,0.15); flex-shrink:0; }
+.navbar-group { display:flex; align-items:center; gap:6px; }
+.navbar-label { color: rgba(255,255,255,0.7); font-size:0.8rem; white-space:nowrap; }
+.navbar-input {
+  width:52px; height:30px;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px;
+  color: #fff; font-size:0.85rem;
+  text-align:center;
+  font-family: var(--font-garamond);
+  transition: var(--transition-fast);
+}
+.navbar-input:focus { outline:none; border-color: var(--gold); background: rgba(255,255,255,0.15); }
+.nav-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height:32px; padding: 0 14px;
+  border-radius: 4px; font-size:0.82rem;
+  font-family: var(--font-serif);
+  cursor: pointer; border: none;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+}
+.nav-btn-gold {
+  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+  color: #fff; font-weight: 600;
+  box-shadow: 0 2px 8px rgba(200,150,62,0.3);
+}
+.nav-btn-gold:hover { filter: brightness(1.1); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(200,150,62,0.4); }
+.nav-btn-ghost {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.nav-btn-ghost:hover { background: rgba(255,255,255,0.15); color:#fff; }
+.nav-btn-danger {
+  background: rgba(192,57,43,0.2);
+  color: #e88;
+  border: 1px solid rgba(192,57,43,0.3);
+}
+.nav-btn-danger:hover { background: rgba(192,57,43,0.35); }
+.nav-btn:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+
+/* ===== PROGRESS BAR ===== */
+.progress-wrap {
+  position: fixed; top: var(--navbar-h); left:0; right:0;
+  height:4px; z-index:999;
+  background: rgba(15,26,46,0.1);
+  display:none;
+}
+.progress-wrap.active { display:block; }
+.progress-bar {
+  height:100%; width:0%;
+  background: linear-gradient(90deg, var(--gold-dark), var(--gold-light), var(--gold), var(--gold-light), var(--gold-dark));
+  background-size: 200% 100%;
+  animation: shimmer 1.5s linear infinite;
+  border-radius: 0 2px 2px 0;
+  transition: width 0.3s ease;
+}
+
+/* ===== MAIN LAYOUT ===== */
+.main-content {
+  max-width: 1400px; margin: 0 auto;
+  padding: 16px 20px 40px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* ===== CARDS / PANELS ===== */
+.card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  animation: slideUp 0.4s ease both;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+  color: #fff; cursor: pointer;
+  user-select: none;
+  transition: var(--transition-fast);
+}
+.card-header:hover { background: linear-gradient(135deg, var(--navy-light) 0%, var(--navy-lighter) 100%); }
+.card-header-title {
+  font-family: var(--font-garamond);
+  font-size: 1.05rem; font-weight: 600;
+  letter-spacing: 1px;
+  display:flex; align-items:center; gap:8px;
+}
+.card-header-title .icon { font-size:1.1rem; }
+.card-header-arrow {
+  font-size:0.7rem; transition: transform 0.3s ease;
+  color: var(--gold);
+}
+.card-header-arrow.open { transform: rotate(180deg); }
+.card-body { padding: 16px 18px; }
+.card-body.collapsed { display:none; }
+
+/* ===== CLASS TYPE CARDS ===== */
+.type-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+.type-card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: var(--transition);
+}
+.type-card:hover { box-shadow: var(--shadow-sm); }
+.type-card-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 8px 12px;
+  background: var(--navy);
+  color:#fff;
+}
+.type-card-name {
+  font-weight:600; font-size:0.9rem;
+  background:transparent; border:none; color:#fff;
+  font-family:var(--font-serif); width:100px;
+}
+.type-card-name:focus { outline:none; border-bottom:1px solid var(--gold); }
+.type-card-body { padding:10px 12px; display:flex; flex-direction:column; gap:8px; }
+.type-card-row { display:flex; align-items:center; gap:8px; font-size:0.82rem; }
+.type-card-row label { color:var(--text-secondary); min-width:56px; }
+.type-select {
+  height:28px; padding:0 8px; border:1px solid var(--gray-200);
+  border-radius:4px; font-size:0.82rem; font-family:var(--font-serif);
+  background:#fff;
+}
+.type-select:focus { outline:none; border-color:var(--gold); }
+.type-num-input {
+  width:48px; height:28px; border:1px solid var(--gray-200);
+  border-radius:4px; text-align:center; font-size:0.82rem;
+  font-family:var(--font-garamond);
+}
+.type-num-input:focus { outline:none; border-color:var(--gold); }
+.slot-btns { display:flex; flex-wrap:wrap; gap:3px; }
+.slot-btn {
+  width:28px; height:24px; border-radius:3px;
+  border:1px solid var(--gray-200); background:var(--gray-50);
+  font-size:0.72rem; cursor:pointer; transition:var(--transition-fast);
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-garamond);
+}
+.slot-btn.active { background:var(--gold); color:#fff; border-color:var(--gold); }
+.slot-btn:hover { border-color:var(--gold); }
+.type-card-actions { display:flex; justify-content:flex-end; padding:0 12px 10px; }
+
+/* ===== MEETING ===== */
+.meeting-toggle {
+  display:inline-flex; align-items:center; gap:8px;
+  cursor:pointer; user-select:none;
+}
+.toggle-track {
+  width:36px; height:20px; border-radius:10px;
+  background:var(--gray-300); position:relative;
+  transition:var(--transition-fast);
+}
+.toggle-track.on { background:var(--gold); }
+.toggle-thumb {
+  width:16px; height:16px; border-radius:50%;
+  background:#fff; position:absolute; top:2px; left:2px;
+  transition:var(--transition-fast);
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle-track.on .toggle-thumb { left:18px; }
+.meeting-config { display:flex; align-items:center; gap:12px; margin-top:10px; flex-wrap:wrap; }
+.meeting-preview { margin-top:8px; color:var(--text-secondary); font-size:0.85rem; }
+
+/* ===== SUBJECT TABS ===== */
+.subject-tabs-bar {
+  display:flex; align-items:center; gap:0;
+  padding:0 4px; overflow-x:auto;
+  background:var(--bg-card);
+  border-radius:var(--radius-lg);
+  box-shadow:var(--shadow-sm);
+  min-height:42px;
+}
+.subject-tab {
+  display:flex; align-items:center; gap:5px;
+  padding:8px 12px; cursor:pointer;
+  font-size:0.82rem; white-space:nowrap;
+  border-bottom:2px solid transparent;
+  transition:var(--transition-fast);
+  position:relative;
+}
+.subject-tab:hover { background:var(--gray-50); }
+.subject-tab.active { border-bottom-color:var(--gold); background:var(--gray-50); }
+.subject-dot {
+  width:10px; height:10px; border-radius:50%;
+  flex-shrink:0;
+}
+.subject-tab-close {
+  font-size:0.7rem; color:var(--gray-400);
+  cursor:pointer; margin-left:2px;
+  width:16px; height:16px; display:flex;
+  align-items:center; justify-content:center;
+  border-radius:50%;
+  transition:var(--transition-fast);
+}
+.subject-tab-close:hover { background:var(--danger-light); color:#fff; }
+.subject-tab-add {
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px; border-radius:50%;
+  background:var(--gray-100); color:var(--gray-500);
+  cursor:pointer; font-size:1rem; flex-shrink:0;
+  margin:0 8px;
+  transition:var(--transition-fast);
+}
+.subject-tab-add:hover { background:var(--gold); color:#fff; }
+
+/* ===== TEACHER SECTION ===== */
+.info-bar {
+  display:flex; align-items:center; gap:16px;
+  padding:10px 16px;
+  background:linear-gradient(135deg, rgba(15,26,46,0.03), rgba(200,150,62,0.05));
+  border-radius:var(--radius);
+  margin-bottom:12px; flex-wrap:wrap;
+}
+.info-item { display:flex; align-items:center; gap:5px; font-size:0.82rem; }
+.info-item .label { color:var(--text-secondary); }
+.info-item .value { font-weight:600; font-family:var(--font-garamond); font-size:1rem; }
+.info-item .value.error { color:var(--danger); }
+.teacher-table-wrap { overflow-x:auto; }
+.teacher-table {
+  width:100%; border-collapse:collapse;
+  font-size:0.85rem;
+}
+.teacher-table th {
+  padding:8px 10px;
+  background:var(--navy);
+  color:rgba(255,255,255,0.9);
+  font-weight:600; font-size:0.8rem;
+  text-align:left; white-space:nowrap;
+  letter-spacing:0.5px;
+}
+.teacher-table td {
+  padding:8px 10px;
+  border-bottom:1px solid var(--gray-100);
+  vertical-align:middle;
+}
+.teacher-table tr:hover td { background:var(--gray-50); }
+.teacher-table .class-tags { display:flex; flex-wrap:wrap; gap:3px; }
+.teacher-table .class-tag {
+  display:inline-flex; align-items:center;
+  padding:1px 6px; border-radius:3px;
+  font-size:0.75rem; background:rgba(200,150,62,0.1);
+  color:var(--gold-dark); border:1px solid rgba(200,150,62,0.2);
+}
+.teacher-table .class-type-label {
+  font-size:0.72rem; color:var(--text-light);
+  padding:1px 5px; background:var(--gray-100);
+  border-radius:3px;
+}
+.teacher-table .type-info { font-size:0.78rem; color:var(--text-secondary); }
+.action-btn {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:3px 10px; border-radius:4px;
+  font-size:0.78rem; cursor:pointer;
+  border:1px solid var(--gray-200);
+  background:#fff; color:var(--text);
+  transition:var(--transition-fast);
+  font-family:var(--font-serif);
+}
+.action-btn:hover { border-color:var(--gold); color:var(--gold); }
+.action-btn.danger:hover { border-color:var(--danger); color:var(--danger); }
+
+/* ===== SCHEDULE TABLE ===== */
+.schedule-wrap { overflow:auto; max-height:70vh; }
+.schedule-table {
+  border-collapse:collapse;
+  font-size:0.82rem;
+  min-width: 100%;
+}
+.schedule-table th, .schedule-table td {
+  border:1px solid var(--gray-200);
+  text-align:center;
+  padding:2px 4px;
+}
+.schedule-table th {
+  background:var(--navy);
+  color:rgba(255,255,255,0.9);
+  font-weight:600; font-size:0.78rem;
+  letter-spacing:0.5px;
+  position:sticky; top:0; z-index:10;
+}
+.schedule-table th.walk-col {
+  background:linear-gradient(135deg, var(--gold-dark), var(--gold));
+  color:#fff;
+}
+.schedule-table th.period-label {
+  background:var(--navy-light);
+  min-width:52px; position:sticky; left:0; z-index:5;
+}
+.schedule-table td {
+  height:56px; min-width:52px;
+  position:relative;
+  transition:var(--transition-fast);
+  cursor:default;
+}
+.schedule-table td:hover { background:rgba(200,150,62,0.06); }
+.schedule-table td.lunch-row {
+  background:linear-gradient(90deg, rgba(200,150,62,0.05), rgba(200,150,62,0.1));
+  height:32px; font-size:0.78rem; color:var(--gold-dark);
+  font-weight:600; letter-spacing:2px;
+}
+.schedule-table td.period-num {
+  background:var(--gray-50);
+  font-weight:600; font-size:0.8rem;
+  color:var(--navy);
+  min-width:52px; position:sticky; left:0; z-index:2;
+  font-family:var(--font-garamond);
+}
+.slot-content {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:2px; line-height:1.2;
+}
+.slot-sub { font-size:11px; font-weight:600; letter-spacing:1px; }
+.slot-abbr { font-size:9px; color:var(--text-secondary); }
+.slot-odd-even {
+  position:absolute; top:2px; right:2px;
+  font-size:8px; padding:0 3px; border-radius:2px;
+  writing-mode:horizontal-tb;
+}
+.slot-odd-even.odd { background:rgba(52,152,219,0.15); color:var(--info); }
+.slot-odd-even.even { background:rgba(39,174,96,0.15); color:var(--success); }
+.meeting-badge {
+  writing-mode: horizontal-tb;
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:2px 8px; border-radius:4px;
+  background:linear-gradient(135deg, var(--warning), #e67e22);
+  color:#fff; font-size:0.78rem; font-weight:600;
+  letter-spacing:1px;
+}
+.remarks-section { margin-top:12px; }
+.remarks-section textarea {
+  width:100%; min-height:60px; padding:10px;
+  border:1px solid var(--gray-200); border-radius:var(--radius);
+  font-family:var(--font-serif); font-size:0.85rem;
+  resize:vertical;
+}
+.remarks-section textarea:focus { outline:none; border-color:var(--gold); }
+
+/* ===== MODALS ===== */
+.modal-overlay {
+  position:fixed; inset:0; z-index:2000;
+  background:rgba(10,18,32,0.6);
+  backdrop-filter:blur(4px);
+  display:none; align-items:center; justify-content:center;
+  animation: fadeIn 0.2s ease;
+}
+.modal-overlay.show { display:flex; }
+.modal {
+  background:var(--bg-card);
+  border-radius:var(--radius-xl);
+  box-shadow:var(--shadow-xl);
+  width:90%; max-width:800px; max-height:85vh;
+  overflow:hidden;
+  animation: fadeInScale 0.3s ease;
+  display:flex; flex-direction:column;
+}
+.modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 20px;
+  background:linear-gradient(135deg, var(--navy), var(--navy-light));
+  color:#fff;
+}
+.modal-header-title {
+  font-family:var(--font-garamond);
+  font-size:1.1rem; font-weight:600;
+  letter-spacing:1px;
+}
+.modal-close {
+  width:28px; height:28px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,0.1);
+  color:rgba(255,255,255,0.7);
+  cursor:pointer; font-size:1rem;
+  transition:var(--transition-fast);
+  border:none;
+}
+.modal-close:hover { background:rgba(255,255,255,0.2); color:#fff; }
+.modal-body { padding:20px; overflow-y:auto; flex:1; }
+.modal-footer {
+  padding:12px 20px;
+  display:flex; justify-content:flex-end; gap:8px;
+  border-top:1px solid var(--gray-200);
+}
+.modal-btn {
+  padding:8px 20px; border-radius:var(--radius);
+  font-size:0.85rem; font-family:var(--font-serif);
+  cursor:pointer; border:none;
+  transition:var(--transition-fast);
+}
+.modal-btn-primary {
+  background:linear-gradient(135deg, var(--gold), var(--gold-dark));
+  color:#fff; font-weight:600;
+}
+.modal-btn-primary:hover { filter:brightness(1.1); }
+.modal-btn-secondary {
+  background:var(--gray-100); color:var(--text);
+  border:1px solid var(--gray-200);
+}
+.modal-btn-secondary:hover { background:var(--gray-200); }
+
+/* ===== TEACHER CONFIG MODAL ===== */
+.pool-label {
+  font-size:0.85rem; font-weight:600;
+  margin-bottom:6px; color:var(--navy);
+}
+.config-class-pool {
+  display:flex; flex-wrap:wrap; gap:6px;
+  padding:10px; background:var(--gray-50);
+  border-radius:var(--radius);
+  margin-bottom:14px;
+}
+.pool-chip {
+  display:inline-flex; align-items:center; justify-content:center;
+  padding:4px 14px; border-radius:4px;
+  font-size:0.85rem; cursor:pointer;
+  border:1px solid var(--gray-200);
+  background:#fff; transition:var(--transition-fast);
+  font-family:var(--font-garamond);
+  user-select:none;
+}
+.pool-chip.selected {
+  background:var(--gold); color:#fff;
+  border-color:var(--gold);
+}
+.pool-chip:hover { border-color:var(--gold); }
+.type-section {
+  border:1px solid var(--gray-200);
+  border-radius:var(--radius);
+  margin-bottom:10px; overflow:hidden;
+}
+.type-section-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:7px 12px;
+  background:var(--navy);
+  color:#fff; font-size:0.82rem; font-weight:600;
+}
+.type-section-badge {
+  font-size:0.68rem; padding:1px 6px;
+  border-radius:3px; background:rgba(255,255,255,0.15);
+  margin-left:6px;
+}
+.type-section-body { padding:8px 12px; min-height:36px; }
+.type-section-tags { display:flex; flex-wrap:wrap; gap:5px; }
+.type-tag {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 10px; border-radius:4px;
+  background:linear-gradient(135deg, rgba(200,150,62,0.15), rgba(200,150,62,0.08));
+  color:var(--gold-dark); font-size:0.82rem;
+  border:1px solid rgba(200,150,62,0.25);
+}
+.type-tag .rm {
+  cursor:pointer; font-size:0.72rem;
+  color:var(--gray-400); margin-left:2px;
+}
+.type-tag .rm:hover { color:var(--danger); }
+.type-section-footer { padding:4px 12px 8px; }
+.type-add-btn {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:4px 12px; border-radius:4px;
+  font-size:0.78rem; cursor:pointer;
+  background:var(--navy); color:rgba(255,255,255,0.8);
+  border:none; font-family:var(--font-serif);
+  transition:var(--transition-fast);
+}
+.type-add-btn:hover { background:var(--navy-light); color:#fff; }
+
+/* Per-class hours table */
+.hours-section { margin-top:14px; }
+.hours-section-title {
+  font-size:0.9rem; font-weight:600;
+  color:var(--navy); margin-bottom:8px;
+  display:flex; align-items:center; gap:6px;
+}
+.hours-table {
+  width:100%; border-collapse:collapse;
+  font-size:0.85rem;
+}
+.hours-table th {
+  padding:6px 10px;
+  background:var(--navy);
+  color:rgba(255,255,255,0.9);
+  font-weight:600; font-size:0.78rem;
+  text-align:left;
+}
+.hours-table td {
+  padding:6px 10px;
+  border-bottom:1px solid var(--gray-100);
+}
+.hours-table input {
+  width:48px; height:26px;
+  border:1px solid var(--gray-200);
+  border-radius:4px; text-align:center;
+  font-size:0.82rem; font-family:var(--font-garamond);
+}
+.hours-table input:focus { outline:none; border-color:var(--gold); }
+.hours-summary {
+  margin-top:8px; padding:8px 12px;
+  border-radius:var(--radius);
+  font-size:0.85rem; font-weight:600;
+  display:flex; align-items:center; gap:8px;
+}
+.hours-summary.match { background:rgba(39,174,96,0.1); color:var(--success); }
+.hours-summary.mismatch { background:rgba(192,57,43,0.1); color:var(--danger); }
+.config-preview {
+  margin-top:12px; padding:10px;
+  background:var(--gray-50);
+  border-radius:var(--radius);
+  font-size:0.82rem; color:var(--text-secondary);
+  line-height:1.8;
+}
+
+/* ===== IMPORT PREVIEW ===== */
+.import-info { margin-bottom:14px; }
+.import-info p { font-size:0.85rem; color:var(--text-secondary); margin-bottom:4px; }
+.import-table {
+  width:100%; border-collapse:collapse;
+  font-size:0.82rem;
+}
+.import-table th {
+  padding:6px 8px; background:var(--navy);
+  color:rgba(255,255,255,0.9);
+  font-weight:600; font-size:0.78rem;
+  text-align:left;
+}
+.import-table td {
+  padding:5px 8px;
+  border-bottom:1px solid var(--gray-100);
+}
+.import-table input {
+  width:100%; height:26px;
+  border:1px solid var(--gray-200);
+  border-radius:3px; padding:0 6px;
+  font-size:0.82rem; font-family:var(--font-serif);
+}
+.import-table input:focus { outline:none; border-color:var(--gold); }
+.import-table select {
+  height:26px; border:1px solid var(--gray-200);
+  border-radius:3px; font-size:0.82rem;
+  font-family:var(--font-serif);
+}
+.import-checkbox-row {
+  display:flex; align-items:center; gap:8px;
+  margin-bottom:12px; font-size:0.85rem;
+}
+.import-checkbox {
+  width:16px; height:16px; accent-color:var(--gold);
+}
+
+/* ===== EMPTY STATE ===== */
+.empty-state {
+  text-align:center; padding:40px 20px;
+  color:var(--text-light);
+}
+.empty-state .icon { font-size:2rem; margin-bottom:8px; }
+.empty-state p { font-size:0.9rem; }
+
+/* ===== TOAST ===== */
+.toast-container {
+  position:fixed; bottom:20px; right:20px;
+  z-index:3000; display:flex; flex-direction:column; gap:8px;
+}
+.toast {
+  padding:10px 18px; border-radius:var(--radius);
+  font-size:0.85rem; color:#fff;
+  box-shadow:var(--shadow-lg);
+  animation: slideUp 0.3s ease;
+  max-width:320px;
+}
+.toast.success { background:var(--success); }
+.toast.error { background:var(--danger-light); }
+.toast.warning { background:var(--warning); }
+.toast.info { background:var(--info); }
+
+/* ===== RESPONSIVE ===== */
+@media (max-width:768px) {
+  .navbar { flex-wrap:wrap; height:auto; padding:8px 12px; gap:6px; }
+  .navbar-title { font-size:1rem; }
+  .main-content { padding:10px 12px 30px; }
+  .type-cards-grid { grid-template-columns:1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar" id="navbar">
+  <span class="navbar-title">高中智能排课系统</span>
+  <span class="navbar-sep"></span>
+  <div class="navbar-group">
+    <span class="navbar-label">班级数</span>
+    <input type="number" class="navbar-input" id="inputClassCount" min="1" max="30" value="2">
+  </div>
+  <div class="navbar-group">
+    <span class="navbar-label">每天课时</span>
+    <input type="number" class="navbar-input" id="inputPeriods" min="1" max="12" value="7">
+  </div>
+  <span class="navbar-sep"></span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-gold" id="btnSchedule" onclick="runScheduling()">智能排课</span>
+  <span class="navbar-sep"></span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-ghost" id="btnUndo" onclick="undo()" title="撤销 Ctrl+Z">撤销</span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-ghost" id="btnRedo" onclick="redo()" title="重做 Ctrl+Y">重做</span>
+  <span class="navbar-sep"></span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-danger" onclick="clearAll()">清空</span>
+  <span class="navbar-sep"></span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-ghost" onclick="exportExcel()">导出 Excel</span>
+  <span role="button" tabindex="0" class="nav-btn nav-btn-ghost" onclick="triggerImport()">导入 Excel</span>
+  <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(event)">
+</nav>
+
+<!-- ===== PROGRESS BAR ===== -->
+<div class="progress-wrap" id="progressWrap">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<div class="main-content" id="mainContent">
+  <!-- Class Types Panel -->
+  <div class="card animate-up" id="classTypesCard">
+    <div class="card-header" onclick="toggleCollapse('classTypes')">
+      <span class="card-header-title"><span class="icon">&#9638;</span> 班级种类配置</span>
+      <span class="card-header-arrow" id="arrowClassTypes">&#9660;</span>
+    </div>
+    <div class="card-body" id="bodyClassTypes">
+      <div class="type-cards-grid" id="typeCardsGrid"></div>
+      <div style="margin-top:10px;">
+        <span role="button" tabindex="0" class="config-add-btn" onclick="addClassType()">+ 添加班种</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Meeting Panel -->
+  <div class="card animate-up" style="animation-delay:0.05s" id="meetingCard">
+    <div class="card-header" onclick="toggleCollapse('meeting')">
+      <span class="card-header-title"><span class="icon">&#9638;</span> 班会设置</span>
+      <span class="card-header-arrow" id="arrowMeeting">&#9660;</span>
+    </div>
+    <div class="card-body" id="bodyMeeting">
+      <div id="meetingContent"></div>
+    </div>
+  </div>
+
+  <!-- Subject Tabs -->
+  <div class="subject-tabs-bar" id="subjectTabsBar"></div>
+
+  <!-- Teacher Section -->
+  <div class="card animate-up" style="animation-delay:0.1s" id="teacherCard">
+    <div class="card-header" onclick="toggleCollapse('teacher')">
+      <span class="card-header-title"><span class="icon">&#9638;</span> 教师管理</span>
+      <span class="card-header-arrow open" id="arrowTeacher">&#9660;</span>
+    </div>
+    <div class="card-body" id="bodyTeacher">
+      <div id="teacherInfoBar"></div>
+      <div class="teacher-table-wrap" id="teacherTableWrap"></div>
+      <div style="margin-top:10px;">
+        <span role="button" tabindex="0" class="config-add-btn" id="btnAddTeacher" onclick="addTeacher()">+ 添加教师</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schedule Section -->
+  <div class="card animate-up" style="animation-delay:0.15s" id="scheduleCard">
+    <div class="card-header" onclick="toggleCollapse('schedule')">
+      <span class="card-header-title"><span class="icon">&#9638;</span> 课程表</span>
+      <span class="card-header-arrow open" id="arrowSchedule">&#9660;</span>
+    </div>
+    <div class="card-body" id="bodySchedule">
+      <div id="scheduleContent"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TEACHER CONFIG MODAL ===== -->
+<div class="modal-overlay" id="configModalOverlay">
+  <div class="modal" style="max-width:860px;">
+    <div class="modal-header">
+      <span class="modal-header-title" id="configModalTitle">配置教师</span>
+      <span role="button" tabindex="0" class="modal-close" onclick="closeConfigModal()">&times;</span>
+    </div>
+    <div class="modal-body" id="configModalBody"></div>
+    <div class="modal-footer">
+      <span role="button" tabindex="0" class="modal-btn modal-btn-secondary" onclick="closeConfigModal()">取消</span>
+      <span role="button" tabindex="0" class="modal-btn modal-btn-primary" onclick="saveConfigModal()">保存</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== IMPORT PREVIEW MODAL ===== -->
+<div class="modal-overlay" id="importModalOverlay">
+  <div class="modal" style="max-width:900px;">
+    <div class="modal-header">
+      <span class="modal-header-title">导入预览</span>
+      <span role="button" tabindex="0" class="modal-close" onclick="closeImportModal()">&times;</span>
+    </div>
+    <div class="modal-body" id="importModalBody"></div>
+    <div class="modal-footer">
+      <span role="button" tabindex="0" class="modal-btn modal-btn-secondary" onclick="closeImportModal()">取消</span>
+      <span role="button" tabindex="0" class="modal-btn modal-btn-primary" onclick="confirmImport()">确认导入</span>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===== JAVASCRIPT ===== -->
+<script>
+'use strict';
+
+/* ============================================================
+   CONSTANTS
+   ============================================================ */
+const DAYS = ['周一','周二','周三','周四','周五','周六','周日'];
+const DAY_SHORT = ['一','二','三','四','五','六','日'];
+const DEFAULT_SUBJECTS = [
+  { name:'语文', color:'#e74c3c' },
+  { name:'数学', color:'#3498db' },
+  { name:'英语', color:'#2ecc71' },
+  { name:'物理', color:'#9b59b6' },
+  { name:'化学', color:'#e67e22' },
+  { name:'生物', color:'#1abc9c' },
+  { name:'历史', color:'#f39c12' },
+  { name:'地理', color:'#16a085' },
+  { name:'政治', color:'#8e44ad' },
+  { name:'体育', color:'#27ae60' },
+  { name:'通用', color:'#7f8c8d' }
+];
+const SUBJECT_COLORS = {};
+DEFAULT_SUBJECTS.forEach(s => SUBJECT_COLORS[s.name] = s.color);
+const MAIN_SUBJECTS = ['语文','数学','英语','物理','化学','生物','历史','地理','政治'];
+const STORAGE_KEY = 'suno_scheduling_state';
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let state = createDefaultState();
+let undoStack = [];
+let redoStack = [];
+let selectedSubject = 0;
+let configTarget = null; // { subject, index }
+let importPreviewData = null;
+let collapsedPanels = {};
+
+function createDefaultState() {
+  return {
+    classCount: 2,
+    periodsPerDay: 7,
+    subjects: JSON.parse(JSON.stringify(DEFAULT_SUBJECTS)),
+    classTypes: [{
+      name: '普通班',
+      mode: '常规',
+      weekType: '每周',
+      fixedHours: 0,
+      allowedSlots: []
+    }],
+    teachers: {},
+    schedule: null,
+    errors: [],
+    classMeeting: { enabled: false, day: 0, period: 0 },
+    remarks: ''
+  };
+}
+
+/* ============================================================
+   UNDO / REDO
+   ============================================================ */
+function pushUndo() {
+  undoStack.push(JSON.stringify(state));
+  if (undoStack.length > 50) undoStack.shift();
+  redoStack = [];
+  updateUndoRedoButtons();
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(state));
+  state = JSON.parse(undoStack.pop());
+  updateUndoRedoButtons();
+  render();
+  showToast('已撤销', 'info');
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(state));
+  state = JSON.parse(redoStack.pop());
+  updateUndoRedoButtons();
+  render();
+  showToast('已重做', 'info');
+}
+
+function updateUndoRedoButtons() {
+  const btnU = document.getElementById('btnUndo');
+  const btnR = document.getElementById('btnRedo');
+  if (btnU) btnU.style.opacity = undoStack.length ? '1' : '0.4';
+  if (btnR) btnR.style.opacity = redoStack.length ? '1' : '0.4';
+}
+
+/* ============================================================
+   PERSISTENCE
+   ============================================================ */
+function saveToLocal() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch(e) {}
+}
+
+function loadFromLocal() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    if (!data || typeof data.classCount !== 'number') return false;
+    // backward compat: migrate classes -> classTypeAssignments
+    if (data.teachers) {
+      Object.values(data.teachers).forEach(arr => {
+        if (Array.isArray(arr)) {
+          arr.forEach(t => {
+            if (t.classes && !t.classTypeAssignments) {
+              t.classTypeAssignments = {};
+              if (data.classTypes && data.classTypes.length) {
+                t.classTypeAssignments['0'] = t.classes.slice();
+              }
+              delete t.classes;
+            }
+            if (!t.classHours) t.classHours = {};
+            // Migrate old classHours format (number → object)
+            Object.keys(t.classHours).forEach(c => {
+              if (typeof t.classHours[c] === 'number') {
+                const h = t.classHours[c];
+                t.classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+              }
+            });
+          });
+        }
+      });
+    }
+    if (!data.classTypes || !data.classTypes.length) {
+      data.classTypes = [{ name:'普通班', mode:'常规', weekType:'每周', fixedHours:0, allowedSlots:[] }];
+    }
+    data.classTypes.forEach(ct => {
+      if (!ct.allowedSlots) ct.allowedSlots = [];
+    });
+    if (!data.classMeeting) data.classMeeting = { enabled:false, day:0, period:0 };
+    if (!data.remarks) data.remarks = '';
+    state = data;
+    return true;
+  } catch(e) { return false; }
+}
+
+/* ============================================================
+   TOAST
+   ============================================================ */
+function showToast(msg, type) {
+  type = type || 'info';
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = 'toast ' + type;
+  t.textContent = msg;
+  c.appendChild(t);
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity 0.3s'; }, 2200);
+  setTimeout(() => t.remove(), 2600);
+}
+
+/* ============================================================
+   COLLAPSE TOGGLE
+   ============================================================ */
+function toggleCollapse(name) {
+  const body = document.getElementById('body' + capitalize(name));
+  const arrow = document.getElementById('arrow' + capitalize(name));
+  if (!body || !arrow) return;
+  const isCollapsed = body.classList.toggle('collapsed');
+  arrow.classList.toggle('open', !isCollapsed);
+  collapsedPanels[name] = isCollapsed;
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/* ============================================================
+   RENDER - MAIN
+   ============================================================ */
+function render() {
+  document.getElementById('inputClassCount').value = state.classCount;
+  document.getElementById('inputPeriods').value = state.periodsPerDay;
+  renderClassTypes();
+  renderMeeting();
+  renderSubjectTabs();
+  renderTeachers();
+  renderSchedule();
+  saveToLocal();
+}
+
+/* ============================================================
+   RENDER - CLASS TYPES
+   ============================================================ */
+function renderClassTypes() {
+  const grid = document.getElementById('typeCardsGrid');
+  if (!grid) return;
+  let html = '';
+  state.classTypes.forEach((ct, i) => {
+    const slotsHtml = renderSlotButtons(ct.allowedSlots, state.periodsPerDay, i);
+    html += `<div class="type-card animate-fade">
+      <div class="type-card-header">
+        <input class="type-card-name" value="${esc(ct.name)}" onchange="updateClassType(${i},'name',this.value)">
+        <span role="button" tabindex="0" style="font-size:0.75rem;cursor:pointer;color:rgba(255,255,255,0.5)" onclick="deleteClassType(${i})" title="删除">&#10005;</span>
+      </div>
+      <div class="type-card-body">
+        <div class="type-card-row">
+          <label>模式</label>
+          <select class="type-select" onchange="updateClassType(${i},'mode',this.value)">
+            <option value="常规" ${ct.mode==='常规'?'selected':''}>常规</option>
+            <option value="走班" ${ct.mode==='走班'?'selected':''}>走班</option>
+          </select>
+        </div>
+        <div class="type-card-row">
+          <label>周类型</label>
+          <select class="type-select" onchange="updateClassType(${i},'weekType',this.value)">
+            <option value="每周" ${ct.weekType==='每周'?'selected':''}>每周</option>
+            <option value="单周" ${ct.weekType==='单周'?'selected':''}>单周</option>
+            <option value="双周" ${ct.weekType==='双周'?'selected':''}>双周</option>
+            <option value="单双周" ${ct.weekType==='单双周'?'selected':''}>单双周</option>
+          </select>
+        </div>
+        <div class="type-card-row">
+          <label>固定课时</label>
+          <input class="type-num-input" type="number" min="0" value="${ct.fixedHours||0}" onchange="updateClassType(${i},'fixedHours',parseInt(this.value)||0)">
+        </div>
+        <div class="type-card-row" style="flex-direction:column;align-items:flex-start;">
+          <label>允许时段</label>
+          <div class="slot-btns">${slotsHtml}</div>
+        </div>
+      </div>
+    </div>`;
+  });
+  grid.innerHTML = html || '<div class="empty-state"><p>暂无班级种类，请点击下方添加</p></div>';
+}
+
+function renderSlotButtons(allowed, ppd, typeIdx) {
+  let h = '';
+  for (let p = 1; p <= ppd; p++) {
+    const active = !allowed.length || allowed.includes(p);
+    h += `<span role="button" tabindex="0" class="slot-btn ${active?'active':''}" onclick="toggleSlot(${typeIdx},${p})">${p}</span>`;
+  }
+  return h;
+}
+
+function addClassType() {
+  pushUndo();
+  state.classTypes.push({
+    name: '班种' + (state.classTypes.length + 1),
+    mode: '常规',
+    weekType: '每周',
+    fixedHours: 0,
+    allowedSlots: []
+  });
+  render();
+}
+
+function deleteClassType(idx) {
+  if (state.classTypes.length <= 1) { showToast('至少保留一个班种', 'warning'); return; }
+  pushUndo();
+  state.classTypes.splice(idx, 1);
+  // fix teacher references
+  Object.values(state.teachers).forEach(arr => {
+    arr.forEach(t => {
+      if (t.classTypeAssignments) {
+        const newAssign = {};
+        Object.entries(t.classTypeAssignments).forEach(([k, v]) => {
+          const ki = parseInt(k);
+          if (ki < idx) newAssign[k] = v;
+          else if (ki > idx) newAssign[ki - 1] = v;
+        });
+        t.classTypeAssignments = newAssign;
+      }
+    });
+  });
+  render();
+}
+
+function updateClassType(idx, field, value) {
+  pushUndo();
+  state.classTypes[idx][field] = value;
+  render();
+}
+
+function toggleSlot(typeIdx, slot) {
+  pushUndo();
+  const ct = state.classTypes[typeIdx];
+  const pos = ct.allowedSlots.indexOf(slot);
+  if (pos >= 0) ct.allowedSlots.splice(pos, 1);
+  else ct.allowedSlots.push(slot);
+  ct.allowedSlots.sort((a, b) => a - b);
+  render();
+}
+
+/* ============================================================
+   RENDER - MEETING
+   ============================================================ */
+function renderMeeting() {
+  const c = document.getElementById('meetingContent');
+  if (!c) return;
+  const m = state.classMeeting;
+  let dayOpts = '';
+  for (let d = 0; d < 7; d++) {
+    dayOpts += `<option value="${d}" ${m.day===d?'selected':''}>${DAYS[d]}</option>`;
+  }
+  let periodOpts = '';
+  for (let p = 1; p <= state.periodsPerDay; p++) {
+    periodOpts += `<option value="${p-1}" ${m.period===(p-1)?'selected':''}>第${p}节</option>`;
+  }
+  const preview = m.enabled
+    ? `班会安排在每周${DAYS[m.day]}第${m.period+1}节，该时段将被锁定。`
+    : '班会未启用。';
+
+  c.innerHTML = `
+    <div class="meeting-toggle" onclick="toggleMeeting()">
+      <div class="toggle-track ${m.enabled?'on':''}"><div class="toggle-thumb"></div></div>
+      <span style="font-size:0.85rem;">${m.enabled?'已启用':'未启用'}</span>
+    </div>
+    <div class="meeting-config" style="display:${m.enabled?'flex':'none'}">
+      <div class="navbar-group">
+        <span class="navbar-label">星期</span>
+        <select class="type-select" onchange="updateMeeting('day',parseInt(this.value))">${dayOpts}</select>
+      </div>
+      <div class="navbar-group">
+        <span class="navbar-label">节次</span>
+        <select class="type-select" onchange="updateMeeting('period',parseInt(this.value))">${periodOpts}</select>
+      </div>
+    </div>
+    <div class="meeting-preview">${preview}</div>`;
+}
+
+function toggleMeeting() {
+  pushUndo();
+  state.classMeeting.enabled = !state.classMeeting.enabled;
+  render();
+}
+
+function updateMeeting(field, value) {
+  pushUndo();
+  state.classMeeting[field] = value;
+  render();
+}
+
+/* ============================================================
+   RENDER - SUBJECT TABS
+   ============================================================ */
+function renderSubjectTabs() {
+  const bar = document.getElementById('subjectTabsBar');
+  if (!bar) return;
+  let html = '';
+  state.subjects.forEach((s, i) => {
+    const color = s.color || SUBJECT_COLORS[s.name] || '#999';
+    html += `<div class="subject-tab ${i===selectedSubject?'active':''}" onclick="selectSubject(${i})">
+      <span class="subject-dot" style="background:${color}"></span>
+      <span>${esc(s.name)}</span>
+      ${state.subjects.length > 1 ? `<span role="button" tabindex="0" class="subject-tab-close" onclick="event.stopPropagation();removeSubject(${i})">&times;</span>` : ''}
+    </div>`;
+  });
+  html += `<span role="button" tabindex="0" class="subject-tab-add" onclick="addSubject()" title="添加科目">+</span>`;
+  bar.innerHTML = html;
+}
+
+function selectSubject(i) {
+  selectedSubject = i;
+  renderSubjectTabs();
+  renderTeachers();
+}
+
+function addSubject() {
+  // Toggle inline input
+  const existing = document.getElementById('addSubjectInput');
+  if (existing) { existing.focus(); return; }
+  const bar = document.getElementById('subjectTabsBar');
+  const input = document.createElement('input');
+  input.id = 'addSubjectInput';
+  input.type = 'text';
+  input.placeholder = '科目名';
+  input.style.cssText = 'width:80px;height:28px;border:1px solid var(--gold);border-radius:4px;padding:0 8px;font-size:0.82rem;font-family:var(--font-serif);outline:none;margin-left:4px;';
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      const val = input.value.trim();
+      if (val) {
+        pushUndo();
+        const colors = ['#c0392b','#2980b9','#27ae60','#8e44ad','#d35400','#16a085','#f39c12','#2c3e50','#e74c3c','#1abc9c'];
+        state.subjects.push({ name: val, color: colors[state.subjects.length % colors.length] });
+        selectedSubject = state.subjects.length - 1;
+        render();
+      }
+    } else if (e.key === 'Escape') {
+      input.remove();
+    }
+  });
+  input.addEventListener('blur', function() { setTimeout(() => input.remove(), 200); });
+  bar.appendChild(input);
+  input.focus();
+}
+
+function removeSubject(i) {
+  if (state.subjects.length <= 1) { showToast('至少保留一个科目', 'warning'); return; }
+  const subj = state.subjects[i].name;
+  pushUndo();
+  delete state.teachers[subj];
+  state.subjects.splice(i, 1);
+  if (selectedSubject >= state.subjects.length) selectedSubject = state.subjects.length - 1;
+  render();
+  showToast(`已删除科目 "${subj}"，可撤销恢复`, 'success');
+}
+
+/* ============================================================
+   RENDER - TEACHERS
+   ============================================================ */
+function renderTeachers() {
+  const subj = state.subjects[selectedSubject];
+  if (!subj) return;
+  const subjName = subj.name;
+  const teachers = state.teachers[subjName] || [];
+
+  // Info bar
+  let totalTeachers = 0;
+  Object.values(state.teachers).forEach(arr => { totalTeachers += arr.length; });
+  const errCount = state.errors.length;
+
+  const infoBar = document.getElementById('teacherInfoBar');
+  if (infoBar) {
+    infoBar.innerHTML = `<div class="info-bar">
+      <div class="info-item"><span class="label">班级数</span><span class="value">${state.classCount}</span></div>
+      <div class="info-item"><span class="label">每天课时</span><span class="value">${state.periodsPerDay}</span></div>
+      <div class="info-item"><span class="label">教师总数</span><span class="value">${totalTeachers}</span></div>
+      <div class="info-item"><span class="label">冲突/错误</span><span class="value ${errCount?'error':''}">${errCount}</span></div>
+      <div class="info-item"><span class="label">当前科目</span><span class="value" style="color:${subj.color||'#999'}">${esc(subjName)}</span></div>
+    </div>`;
+  }
+
+  const wrap = document.getElementById('teacherTableWrap');
+  if (!wrap) return;
+
+  if (!teachers.length) {
+    wrap.innerHTML = '<div class="empty-state"><p>当前科目暂无教师，请点击下方添加</p></div>';
+    return;
+  }
+
+  let tableHtml = `<table class="teacher-table">
+    <thead><tr>
+      <th>序号</th><th>姓名</th><th>简称</th><th>任教班级</th><th>周课时</th><th>班种</th><th>操作</th>
+    </tr></thead><tbody>`;
+
+  teachers.forEach((t, i) => {
+    // Build class display per type
+    let classDisplay = '';
+    let typeDisplay = '';
+    if (t.classTypeAssignments) {
+      const parts = [];
+      const tParts = [];
+      Object.entries(t.classTypeAssignments).forEach(([ti, cls]) => {
+        const ct = state.classTypes[parseInt(ti)];
+        if (!ct || !cls.length) return;
+        parts.push(`<span class="class-type-label">${esc(ct.name)}</span>: ${cls.join(',')}`);
+        tParts.push(`${esc(ct.name)}(${ct.mode})`);
+      });
+      classDisplay = parts.join(' | ') || '-';
+      typeDisplay = tParts.join('，') || '-';
+    }
+
+    // Hours display
+    let totalH = 0;
+    if (t.classHours) {
+      Object.values(t.classHours).forEach(ch => {
+        if (typeof ch === 'number') totalH += ch;
+        else totalH += (ch.fixed || 0) + (ch.single || 0) + (ch.double || 0) + (ch.pending || 0);
+      });
+    }
+    if (!totalH && t.hours) totalH = t.hours;
+
+    tableHtml += `<tr>
+      <td style="color:var(--text-light);font-size:0.78rem;">${i+1}</td>
+      <td><strong>${esc(t.name)}</strong></td>
+      <td>${esc(t.abbr)}</td>
+      <td style="font-size:0.78rem;">${classDisplay}</td>
+      <td style="font-family:var(--font-garamond);font-weight:600;">${totalH}</td>
+      <td style="font-size:0.78rem;">${typeDisplay}</td>
+      <td>
+        <span role="button" tabindex="0" class="action-btn" onclick="openConfigModal('${esc(subjName)}',${i})">配置</span>
+        <span role="button" tabindex="0" class="action-btn danger" onclick="deleteTeacher('${esc(subjName)}',${i})">删除</span>
+      </td>
+    </tr>`;
+  });
+
+  tableHtml += '</tbody></table>';
+  wrap.innerHTML = tableHtml;
+}
+
+function addTeacher() {
+  const subj = state.subjects[selectedSubject];
+  if (!subj) return;
+  pushUndo();
+  if (!state.teachers[subj.name]) state.teachers[subj.name] = [];
+  const idx = state.teachers[subj.name].length;
+  state.teachers[subj.name].push({
+    name: '教师' + (idx + 1),
+    abbr: '教' + (idx + 1),
+    classTypeAssignments: {},
+    hours: 0,
+    classHours: {}
+  });
+  render();
+}
+
+function deleteTeacher(subjName, idx) {
+  pushUndo();
+  const name = state.teachers[subjName][idx].name;
+  state.teachers[subjName].splice(idx, 1);
+  render();
+  showToast(`已删除教师 "${name}"，可撤销恢复`, 'success');
+}
+
+/* ============================================================
+   TEACHER CONFIG MODAL
+   ============================================================ */
+function openConfigModal(subjName, tIdx) {
+  configTarget = { subject: subjName, index: tIdx };
+  const t = state.teachers[subjName][tIdx];
+  document.getElementById('configModalTitle').textContent = `配置 - ${t.name}（${subjName}）`;
+  renderConfigModalBody(t);
+  document.getElementById('configModalOverlay').classList.add('show');
+}
+
+function closeConfigModal() {
+  document.getElementById('configModalOverlay').classList.remove('show');
+  configTarget = null;
+}
+
+function renderConfigModalBody(t) {
+  const body = document.getElementById('configModalBody');
+  const N = state.classCount;
+  const cts = state.classTypes;
+
+  // Build allAssigned set
+  const allAssigned = new Set();
+  Object.values(t.classTypeAssignments || {}).forEach(cls => cls.forEach(c => allAssigned.add(c)));
+
+  // Pool
+  let poolHtml = '<div class="pool-label">选择班级（点击选中，再点下方「添加」按钮分配到班种）</div><div class="config-class-pool">';
+  for (let c = 1; c <= N; c++) {
+    const sel = allAssigned.has(c) ? ' selected' : '';
+    poolHtml += `<span role="button" tabindex="0" class="pool-chip${sel}" onclick="togglePoolChip(this,${c})">${c}班</span>`;
+  }
+  poolHtml += '</div>';
+
+  // Per-type sections
+  let typeHtml = '';
+  cts.forEach((ct, ti) => {
+    const assigned = (t.classTypeAssignments && t.classTypeAssignments[ti]) || [];
+    let tagsHtml = '';
+    assigned.forEach(c => {
+      tagsHtml += `<span class="type-tag">${c}班 <span class="rm" onclick="removeFromClassType(${ti},${c})">&times;</span></span>`;
+    });
+    if (!assigned.length) tagsHtml = '<span style="color:var(--text-light);font-size:0.78rem;">未分配班级</span>';
+
+    typeHtml += `<div class="type-section">
+      <div class="type-section-header">
+        <span>${esc(ct.name)} <span class="type-section-badge">${ct.mode}</span></span>
+        <span class="type-section-badge">${ct.weekType}</span>
+      </div>
+      <div class="type-section-body"><div class="type-section-tags">${tagsHtml}</div></div>
+      <div class="type-section-footer">
+        <span role="button" tabindex="0" class="type-add-btn" onclick="addPoolToType(${ti})">+ 添加选中班级到此班种</span>
+      </div>
+    </div>`;
+  });
+
+  // Total hours
+  const totalH = t.hours || 0;
+
+  // Per-class hours table
+  const assignedClasses = [];
+  Object.values(t.classTypeAssignments || {}).forEach(cls => cls.forEach(c => { if (!assignedClasses.includes(c)) assignedClasses.push(c); }));
+  assignedClasses.sort((a, b) => a - b);
+  const classHours = t.classHours || {};
+
+  let hoursHtml = '';
+  if (assignedClasses.length) {
+    // Gather type names per class
+    const classNames = {};
+    Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+      const ct = state.classTypes[parseInt(ti)];
+      if (!ct) return;
+      cls.forEach(c => {
+        if (!classNames[c]) classNames[c] = [];
+        classNames[c].push(ct.name);
+      });
+    });
+
+    hoursHtml = `<div class="hours-section">
+      <div class="hours-section-title">&#9202; 各班课时分配</div>
+      <table class="hours-table" id="hoursTable">
+        <thead><tr><th>班级</th><th>班种</th><th>固定课时</th><th>单周</th><th>双周</th><th>待定</th><th>合计</th></tr></thead><tbody>`;
+    assignedClasses.forEach(c => {
+      const ch = classHours[c] || {};
+      const fixed = ch.fixed || 0;
+      const single = ch.single || 0;
+      const double = ch.double || 0;
+      const pending = ch.pending || 0;
+      const total = fixed + single + double + pending;
+      const note = pending > 0 ? '<span style="font-size:0.68rem;color:var(--gold-dark);display:block;margin-top:2px;">暂未区分单双周</span>' : '';
+      hoursHtml += `<tr>
+        <td>${c}班</td>
+        <td style="font-size:0.78rem;color:var(--text-secondary)">${esc((classNames[c]||[]).join(','))}</td>
+        <td><input type="number" min="0" value="${fixed}" onchange="onHoursChange(${c},'fixed',this.value)" style="width:40px"></td>
+        <td><input type="number" min="0" value="${single}" onchange="onHoursChange(${c},'single',this.value)" style="width:40px"></td>
+        <td><input type="number" min="0" value="${double}" onchange="onHoursChange(${c},'double',this.value)" style="width:40px"></td>
+        <td><input type="number" min="0" value="${pending}" onchange="onHoursChange(${c},'pending',this.value)" style="width:40px">${note}</td>
+        <td style="text-align:center;font-weight:600;color:var(--navy)">${total}</td>
+      </tr>`;
+    });
+    hoursHtml += '</tbody></table>';
+
+    // Summary
+    let sumFixed = 0, sumSingle = 0, sumDouble = 0, sumPending = 0;
+    assignedClasses.forEach(c => {
+      const ch = classHours[c] || {};
+      sumFixed += ch.fixed || 0;
+      sumSingle += ch.single || 0;
+      sumDouble += ch.double || 0;
+      sumPending += ch.pending || 0;
+    });
+    const sumTotal = sumFixed + sumSingle + sumDouble + sumPending;
+    let summaryText = `合计: ${sumTotal}`;
+    if (sumFixed > 0) summaryText += ` | 固定: ${sumFixed}`;
+    if (sumSingle > 0 || sumDouble > 0) summaryText += ` | 单周: ${sumSingle}，双周: ${sumDouble}`;
+    if (sumPending > 0) summaryText += ` | 待定: ${sumPending}`;
+    const match = sumTotal === totalH;
+    hoursHtml += `<div class="hours-summary ${match?'match':'mismatch'}">${summaryText}</div></div>`;
+  }
+
+  // Preview
+  const previewText = buildPreviewText(t);
+
+  body.innerHTML = `
+    <div style="margin-bottom:10px;">
+      <div class="type-card-row" style="margin-bottom:8px;">
+        <label>姓名</label>
+        <input class="type-select" style="width:120px;" value="${esc(t.name)}" oninput="onConfigFieldChange('name',this.value)">
+      </div>
+      <div class="type-card-row">
+        <label>简称</label>
+        <input class="type-select" style="width:80px;" value="${esc(t.abbr)}" oninput="onConfigFieldChange('abbr',this.value)">
+      </div>
+    </div>
+    ${poolHtml}
+    ${typeHtml}
+    <div style="margin-top:14px;">
+      <div class="type-card-row">
+        <label>总周课时</label>
+        <input class="type-num-input" type="number" min="0" value="${totalH}" onchange="onTotalHoursChange(parseInt(this.value)||0)">
+      </div>
+    </div>
+    ${hoursHtml}
+    <div class="config-preview">${previewText}</div>`;
+}
+
+function onConfigFieldChange(field, value) {
+  if (!configTarget) return;
+  const t = state.teachers[configTarget.subject][configTarget.index];
+  t[field] = value;
+  document.getElementById('configModalTitle').textContent = `配置 - ${t.name}（${configTarget.subject}）`;
+}
+
+function onTotalHoursChange(val) {
+  if (!configTarget) return;
+  const t = state.teachers[configTarget.subject][configTarget.index];
+  t.hours = val;
+  redistributeHours(t);
+  renderConfigModalBody(t);
+}
+
+function onHoursChange(classNum, field, rawVal) {
+  if (!configTarget) return;
+  const t = state.teachers[configTarget.subject][configTarget.index];
+  if (!t.classHours) t.classHours = {};
+  if (!t.classHours[classNum]) t.classHours[classNum] = { fixed: 0, single: 0, double: 0, pending: 0 };
+
+  const ch = t.classHours[classNum];
+  const val = Math.max(0, parseInt(rawVal) || 0);
+  ch[field] = val;
+
+  // Mutual exclusion: single/double vs pending
+  if (field === 'pending' && val > 0) {
+    // Clear single and double
+    ch.single = 0;
+    ch.double = 0;
+  } else if ((field === 'single' || field === 'double') && val > 0) {
+    // Clear pending
+    ch.pending = 0;
+  }
+
+  // Update total to match sum across all classes
+  let sum = 0;
+  Object.values(t.classHours).forEach(cc => {
+    sum += (cc.fixed || 0) + (cc.single || 0) + (cc.double || 0) + (cc.pending || 0);
+  });
+  t.hours = sum;
+  renderConfigModalBody(t);
+}
+
+function togglePoolChip(el) {
+  el.classList.toggle('selected');
+}
+
+function addPoolToType(typeIdx) {
+  if (!configTarget) return;
+  const t = state.teachers[configTarget.subject][configTarget.index];
+  if (!t.classTypeAssignments) t.classTypeAssignments = {};
+
+  // Get selected pool chips
+  const chips = document.querySelectorAll('#configModalBody .pool-chip.selected');
+  const selected = [];
+  chips.forEach(chip => {
+    const n = parseInt(chip.textContent);
+    if (!isNaN(n)) selected.push(n);
+  });
+  if (!selected.length) { showToast('请先在上方选择班级', 'warning'); return; }
+
+  // Only add to target type, do NOT remove from other types
+  if (!t.classTypeAssignments[typeIdx]) t.classTypeAssignments[typeIdx] = [];
+  selected.forEach(c => {
+    if (!t.classTypeAssignments[typeIdx].includes(c)) {
+      t.classTypeAssignments[typeIdx].push(c);
+    }
+  });
+  t.classTypeAssignments[typeIdx].sort((a, b) => a - b);
+
+  redistributeHours(t);
+  renderConfigModalBody(t);
+}
+
+function removeFromClassType(typeIdx, classNum) {
+  if (!configTarget) return;
+  const t = state.teachers[configTarget.subject][configTarget.index];
+  if (t.classTypeAssignments && t.classTypeAssignments[typeIdx]) {
+    const idx = t.classTypeAssignments[typeIdx].indexOf(classNum);
+    if (idx >= 0) t.classTypeAssignments[typeIdx].splice(idx, 1);
+  }
+  redistributeHours(t);
+  renderConfigModalBody(t);
+}
+
+function redistributeHours(t) {
+  const classes = [];
+  Object.values(t.classTypeAssignments || {}).forEach(cls => cls.forEach(c => { if (!classes.includes(c)) classes.push(c); }));
+  classes.sort((a, b) => a - b);
+  const total = t.hours || 0;
+  if (!classes.length) { t.classHours = {}; return; }
+
+  // Preserve existing per-class breakdown, just redistribute evenly as fixed
+  const n = classes.length;
+  const base = Math.floor(total / n);
+  let remainder = total - base * n;
+  t.classHours = {};
+  classes.forEach(c => {
+    const h = base + (remainder > 0 ? 1 : 0);
+    t.classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+    if (remainder > 0) remainder--;
+  });
+}
+
+function buildPreviewText(t) {
+  const parts = [];
+  parts.push(`<strong>${esc(t.name)}</strong>（${esc(t.abbr)}）`);
+  Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+    const ct = state.classTypes[parseInt(ti)];
+    if (!ct || !cls.length) return;
+    parts.push(`${esc(ct.name)}[${ct.mode},${ct.weekType}]: ${cls.map(c => c+'班').join('、')}`);
+  });
+  return parts.join('<br>');
+}
+
+function saveConfigModal() {
+  if (!configTarget) return;
+  pushUndo();
+  closeConfigModal();
+  render();
+  showToast('教师配置已保存', 'success');
+}
+
+/* ============================================================
+   RENDER - SCHEDULE
+   ============================================================ */
+function renderSchedule() {
+  const c = document.getElementById('scheduleContent');
+  if (!c) return;
+  const sched = state.schedule;
+  if (!sched) {
+    c.innerHTML = `<div class="empty-state">
+      <p>尚未排课，请配置教师后点击"智能排课"按钮</p>
+    </div>
+    <div class="remarks-section">
+      <label style="font-size:0.85rem;font-weight:600;color:var(--navy);">备注</label>
+      <textarea placeholder="在此输入备注信息..." onchange="state.remarks=this.value;saveToLocal()">${esc(state.remarks||'')}</textarea>
+    </div>`;
+    return;
+  }
+
+  const N = state.classCount;
+  const ppd = state.periodsPerDay;
+  const grid = sched.grid;    // [5][ppd][N]
+  const walkGrid = sched.walkGrid; // [5][ppd]
+  const m = state.classMeeting;
+
+  let html = '<div class="schedule-wrap"><table class="schedule-table">';
+
+  // Header row 1: day spans
+  html += '<thead><tr><th rowspan="2" class="period-label">节次</th>';
+  for (let d = 0; d < 5; d++) {
+    html += `<th colspan="${N+1}" style="font-size:0.85rem;letter-spacing:2px;">${DAYS[d]}</th>`;
+  }
+  html += '</tr>';
+
+  // Header row 2: class sub-headers
+  html += '<tr>';
+  for (let d = 0; d < 5; d++) {
+    for (let ci = 0; ci < N; ci++) {
+      html += `<th style="font-size:0.75rem;font-weight:500;">${ci+1}班</th>`;
+    }
+    html += '<th class="walk-col" style="font-size:0.75rem;">走班</th>';
+  }
+  html += '</tr></thead><tbody>';
+
+  // Data rows
+  for (let p = 0; p < ppd; p++) {
+    // Lunch break after morning sessions (after period ppd/2 rounded)
+    if (p === Math.floor(ppd / 2)) {
+      html += `<tr><td class="period-num" style="background:linear-gradient(90deg,rgba(200,150,62,0.05),rgba(200,150,62,0.1));">午休</td>`;
+      for (let d = 0; d < 5; d++) {
+        html += `<td colspan="${N+1}" class="lunch-row">午 休</td>`;
+      }
+      html += '</tr>';
+    }
+
+    html += `<tr><td class="period-num">第${p+1}节</td>`;
+    for (let d = 0; d < 5; d++) {
+      // Check meeting time
+      if (m.enabled && d === m.day && p === m.period) {
+        for (let ci = 0; ci < N; ci++) {
+          html += `<td style="background:rgba(243,156,18,0.05);"><div class="meeting-badge">班会</div></td>`;
+        }
+        html += '<td class="walk-col" style="background:rgba(243,156,18,0.05);"><div class="meeting-badge">班会</div></td>';
+      } else {
+        // Regular cells
+        for (let ci = 0; ci < N; ci++) {
+          const cell = grid[d] && grid[d][p] && grid[d][p][ci] ? grid[d][p][ci] : null;
+          if (cell) {
+            const color = SUBJECT_COLORS[cell.sub] || '#999';
+            const oeHtml = cell.oddEven ? `<span class="slot-odd-even ${cell.oddEven}">${cell.oddEven==='odd'?'单':'双'}</span>` : '';
+            html += `<td><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(cell.sub)}</span><span class="slot-abbr">${esc(cell.abbr)}</span></div>${oeHtml}</td>`;
+          } else {
+            html += '<td></td>';
+          }
+        }
+        // Walk column
+        const wCell = walkGrid[d] && walkGrid[d][p] ? walkGrid[d][p] : null;
+        if (wCell) {
+          const color = SUBJECT_COLORS[wCell.sub] || '#999';
+          html += `<td style="background:rgba(200,150,62,0.04);"><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(wCell.sub)}</span><span class="slot-abbr">${esc(wCell.abbr)}</span></div></td>`;
+        } else {
+          html += '<td style="background:rgba(200,150,62,0.04);"></td>';
+        }
+      }
+    }
+    html += '</tr>';
+  }
+
+  html += '</tbody></table></div>';
+
+  // Errors
+  if (state.errors.length) {
+    html += '<div style="margin-top:12px;padding:10px;background:rgba(192,57,43,0.05);border-radius:var(--radius);border:1px solid rgba(192,57,43,0.15);">';
+    html += '<div style="font-weight:600;color:var(--danger);margin-bottom:6px;font-size:0.85rem;">排课冲突/警告:</div>';
+    state.errors.forEach(e => {
+      html += `<div style="font-size:0.82rem;color:var(--danger-light);padding:2px 0;">- ${esc(e)}</div>`;
+    });
+    html += '</div>';
+  }
+
+  // Remarks
+  html += `<div class="remarks-section">
+    <label style="font-size:0.85rem;font-weight:600;color:var(--navy);">备注</label>
+    <textarea placeholder="在此输入备注信息..." onchange="state.remarks=this.value;saveToLocal()">${esc(state.remarks||'')}</textarea>
+  </div>`;
+
+  c.innerHTML = html;
+}
+
+/* ============================================================
+   SCHEDULING ALGORITHM
+   ============================================================ */
+async function runScheduling() {
+  pushUndo();
+  state.errors = [];
+  state.schedule = null;
+
+  // Validate
+  const tasks = buildTasks();
+  if (!tasks.length) {
+    showToast('没有可排课的教师任务，请先配置教师', 'warning');
+    return;
+  }
+
+  // Show progress
+  const pw = document.getElementById('progressWrap');
+  const pb = document.getElementById('progressBar');
+  pw.classList.add('active');
+  pb.style.width = '0%';
+
+  await sleep(50);
+
+  const N = state.classCount;
+  const ppd = state.periodsPerDay;
+  const m = state.classMeeting;
+
+  // Initialize grids
+  const grid = [];     // [5][ppd][N]
+  const walkGrid = []; // [5][ppd]
+  for (let d = 0; d < 5; d++) {
+    grid[d] = [];
+    walkGrid[d] = [];
+    for (let p = 0; p < ppd; p++) {
+      grid[d][p] = [];
+      for (let ci = 0; ci < N; ci++) grid[d][p][ci] = null;
+      walkGrid[d][p] = null;
+    }
+  }
+
+  // Sort tasks by priority
+  const phases = [
+    tasks.filter(t => t.typeMode === '常规' && MAIN_SUBJECTS.includes(t.subject)),
+    tasks.filter(t => t.typeMode === '常规' && !MAIN_SUBJECTS.includes(t.subject)),
+    tasks.filter(t => t.typeMode === '走班' && MAIN_SUBJECTS.includes(t.subject)),
+    tasks.filter(t => t.typeMode === '走班' && !MAIN_SUBJECTS.includes(t.subject)),
+    [] // fallback
+  ];
+
+  const allPlaced = [];
+  const totalTasks = tasks.reduce((s, t) => s + t.hours, 0);
+  let placed = 0;
+  const unplaced = [];
+
+  for (let phase = 0; phase < phases.length; phase++) {
+    const phaseTasks = phase < 4 ? phases[phase] : unplaced.splice(0);
+    for (const task of phaseTasks) {
+      for (let h = 0; h < task.hours; h++) {
+        const slot = findBestSlot(task, grid, walkGrid, N, ppd, m);
+        if (slot) {
+          if (task.typeMode === '走班') {
+            walkGrid[slot.day][slot.period] = { sub: task.subject, abbr: task.abbr };
+          } else {
+            grid[slot.day][slot.period][slot.classNum - 1] = {
+              sub: task.subject,
+              abbr: task.abbr,
+              oddEven: task.oddEven
+            };
+          }
+          placed++;
+        } else {
+          unplaced.push({ ...task, hours: 1 });
+          state.errors.push(`${task.teacherName}(${task.subject}) 的 ${task.classNum}班 有1课时无法安排`);
+        }
+        // Update progress
+        const pct = Math.min(100, Math.round((placed / totalTasks) * 100));
+        pb.style.width = pct + '%';
+        if (placed % 8 === 0) await sleep(1);
+      }
+    }
+  }
+
+  // Fallback: try harder for unplaced
+  for (const task of unplaced) {
+    const slot = findBestSlot(task, grid, walkGrid, N, ppd, m, true);
+    if (slot) {
+      if (task.typeMode === '走班') {
+        walkGrid[slot.day][slot.period] = { sub: task.subject, abbr: task.abbr };
+      } else {
+        grid[slot.day][slot.period][slot.classNum - 1] = {
+          sub: task.subject,
+          abbr: task.abbr,
+          oddEven: task.oddEven
+        };
+      }
+      placed++;
+    }
+  }
+
+  pb.style.width = '100%';
+  await sleep(300);
+  pw.classList.remove('active');
+
+  state.schedule = { grid, walkGrid };
+  renderSchedule();
+
+  // Scroll to schedule
+  setTimeout(() => {
+    document.getElementById('scheduleCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 200);
+
+  const failCount = state.errors.length;
+  showToast(failCount ? `排课完成，${failCount}个冲突` : '排课完成！', failCount ? 'warning' : 'success');
+}
+
+function buildTasks() {
+  const tasks = [];
+  state.subjects.forEach(subj => {
+    const teachers = state.teachers[subj.name] || [];
+    teachers.forEach(t => {
+      Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+        const ct = state.classTypes[parseInt(ti)];
+        if (!ct) return;
+        cls.forEach(classNum => {
+          const ch = t.classHours && t.classHours[classNum];
+          const hours = ch ? (ch.fixed || 0) + (ch.single || 0) + (ch.double || 0) + (ch.pending || 0) : 0;
+          if (hours <= 0) return;
+          let oddEven = null;
+          if (ct.weekType === '单周') oddEven = 'odd';
+          else if (ct.weekType === '双周') oddEven = 'even';
+
+          // For单双周, we still schedule the same number of slots
+          // but mark them with oddEven
+          tasks.push({
+            subject: subj.name,
+            teacherName: t.name,
+            abbr: t.abbr,
+            classNum: classNum,
+            typeMode: ct.mode,
+            typeIdx: parseInt(ti),
+            weekType: ct.weekType,
+            oddEven: oddEven,
+            hours: hours,
+            allowedSlots: ct.allowedSlots,
+            isMain: MAIN_SUBJECTS.includes(subj.name)
+          });
+        });
+      });
+    });
+  });
+  return tasks;
+}
+
+function findBestSlot(task, grid, walkGrid, N, ppd, m, relaxed) {
+  const candidates = [];
+  for (let d = 0; d < 5; d++) {
+    for (let p = 0; p < ppd; p++) {
+      const score = scoreSlot(task, d, p, grid, walkGrid, N, ppd, m, relaxed);
+      if (score >= 0) {
+        candidates.push({ day: d, period: p, score });
+      }
+    }
+  }
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  // Pick from top candidates with some randomness
+  const topN = Math.min(3, candidates.length);
+  return candidates[Math.floor(Math.random() * topN)];
+}
+
+function scoreSlot(task, d, p, grid, walkGrid, N, ppd, m, relaxed) {
+  // Meeting check
+  if (m.enabled && d === m.day && p === m.period) return -1;
+
+  // Allowed slots check
+  if (!relaxed && task.allowedSlots && task.allowedSlots.length) {
+    if (!task.allowedSlots.includes(p + 1)) return -1;
+  }
+
+  if (task.typeMode === '走班') {
+    // Walk class constraints
+    if (walkGrid[d][p]) return -1; // slot occupied
+    // Check teacher conflict
+    if (hasTeacherConflict(task, d, p, grid, walkGrid, N)) return -1;
+    // Check participating classes are free
+    const t = getTeacherObj(task);
+    if (t) {
+      const assignedClasses = [];
+      Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+        const ct = state.classTypes[parseInt(ti)];
+        if (ct && ct.mode === '常规') cls.forEach(c => assignedClasses.push(c));
+      });
+      // These regular classes should not have a subject at this time
+      // Actually for walk classes, the student constraint is that the specific walk class students
+      // must be free. Since we don't track individual students, we skip this constraint.
+    }
+  } else {
+    // Regular class constraints
+    const ci = task.classNum - 1;
+    if (ci < 0 || ci >= N) return -1;
+    if (grid[d][p][ci]) {
+      // Check oddEven sharing
+      const existing = grid[d][p][ci];
+      if (task.oddEven && existing.oddEven && task.oddEven !== existing.oddEven) {
+        // Can share the slot
+      } else {
+        return -1; // slot occupied
+      }
+    }
+    // Teacher conflict
+    if (hasTeacherConflict(task, d, p, grid, walkGrid, N)) return -1;
+  }
+
+  // Teacher daily limit (4 periods per day)
+  if (!relaxed && teacherDailyCount(task, d, grid, walkGrid, N) >= 4) return -1;
+
+  // Subject dispersion: max 2 per day per class
+  if (!relaxed && task.typeMode === '常规') {
+    const subjCountToday = countSubjectInClassDay(task, d, grid, N);
+    if (subjCountToday >= 2) return -1;
+  }
+
+  // Score
+  let score = 10;
+
+  // Morning preference for main subjects
+  if (task.isMain && p < Math.floor(ppd / 2)) score += 3;
+
+  // Prefer slots where teacher has fewer classes that day
+  const tdc = teacherDailyCount(task, d, grid, walkGrid, N);
+  score += (4 - tdc) * 0.5;
+
+  // Prefer dispersion
+  if (task.typeMode === '常规') {
+    const sc = countSubjectInClassDay(task, d, grid, N);
+    score += (2 - sc) * 1.5;
+  }
+
+  // Prefer middle periods
+  const mid = ppd / 2;
+  score -= Math.abs(p - mid) * 0.3;
+
+  // Day balance
+  const dayCounts = teacherDayCounts(task, grid, walkGrid, N);
+  const minDay = Math.min(...dayCounts);
+  if (tdc === minDay) score += 1;
+
+  return score;
+}
+
+function hasTeacherConflict(task, d, p, grid, walkGrid, N) {
+  // Check if this teacher is already teaching at [d][p]
+  const t = getTeacherObj(task);
+  if (!t) return false;
+  // Check regular grid
+  for (let ci = 0; ci < N; ci++) {
+    const cell = grid[d][p][ci];
+    if (cell && cell.abbr === task.abbr && cell.sub === task.subject) {
+      // Same teacher, check if it's a different class (conflict)
+      // Actually abbr+sub combo should be unique per teacher
+      return true;
+    }
+  }
+  // Check walk grid
+  const wCell = walkGrid[d][p];
+  if (wCell && wCell.abbr === task.abbr && wCell.sub === task.subject) {
+    return true;
+  }
+  return false;
+}
+
+function teacherDailyCount(task, d, grid, walkGrid, N) {
+  let count = 0;
+  for (let p = 0; p < state.periodsPerDay; p++) {
+    for (let ci = 0; ci < N; ci++) {
+      const cell = grid[d][p][ci];
+      if (cell && cell.abbr === task.abbr && cell.sub === task.subject) count++;
+    }
+    const wCell = walkGrid[d][p];
+    if (wCell && wCell.abbr === task.abbr && wCell.sub === task.subject) count++;
+  }
+  return count;
+}
+
+function teacherDayCounts(task, grid, walkGrid, N) {
+  const counts = [];
+  for (let d = 0; d < 5; d++) {
+    counts.push(teacherDailyCount(task, d, grid, walkGrid, N));
+  }
+  return counts;
+}
+
+function countSubjectInClassDay(task, d, grid, N) {
+  const ci = task.classNum - 1;
+  if (ci < 0 || ci >= N) return 0;
+  let count = 0;
+  for (let p = 0; p < state.periodsPerDay; p++) {
+    const cell = grid[d][p][ci];
+    if (cell && cell.sub === task.subject) count++;
+  }
+  return count;
+}
+
+function getTeacherObj(task) {
+  const teachers = state.teachers[task.subject] || [];
+  return teachers.find(t => t.name === task.teacherName && t.abbr === task.abbr);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* ============================================================
+   EXCEL EXPORT
+   ============================================================ */
+async function ensureSheetJS() {
+  if (window.XLSX) return;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js';
+    s.onload = resolve;
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
+}
+
+async function exportExcel() {
+  try {
+    await ensureSheetJS();
+  } catch (e) {
+    showToast('加载 SheetJS 失败，请检查网络', 'error');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Teacher list
+  const teacherData = [['科目', '姓名', '简称', '任教班级', '固定课时', '单周课时', '双周课时', '待定课时', '总课时', '班种']];
+  state.subjects.forEach(subj => {
+    const teachers = state.teachers[subj.name] || [];
+    teachers.forEach(t => {
+      const classes = [];
+      const types = [];
+      Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+        const ct = state.classTypes[parseInt(ti)];
+        if (!ct) return;
+        classes.push(ct.name + ':' + cls.join(','));
+        types.push(ct.name + '(' + ct.mode + ')');
+      });
+      let sumFixed = 0, sumSingle = 0, sumDouble = 0, sumPending = 0;
+      Object.values(t.classHours || {}).forEach(ch => {
+        if (typeof ch === 'number') { sumFixed += ch; }
+        else { sumFixed += ch.fixed || 0; sumSingle += ch.single || 0; sumDouble += ch.double || 0; sumPending += ch.pending || 0; }
+      });
+      const totalH = sumFixed + sumSingle + sumDouble + sumPending;
+      teacherData.push([subj.name, t.name, t.abbr, classes.join(' | '), sumFixed, sumSingle, sumDouble, sumPending, totalH, types.join('，')]);
+    });
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet(teacherData);
+  XLSX.utils.book_append_sheet(wb, ws1, '教师列表');
+
+  // Sheet 2: Schedule
+  if (state.schedule) {
+    const N = state.classCount;
+    const ppd = state.periodsPerDay;
+    const schedData = [];
+
+    // Header row 1
+    const row1 = ['节次'];
+    for (let d = 0; d < 5; d++) {
+      for (let ci = 0; ci < N; ci++) row1.push(DAYS[d] + (ci+1) + '班');
+      row1.push(DAYS[d] + '走班');
+    }
+    schedData.push(row1);
+
+    // Data rows
+    for (let p = 0; p < ppd; p++) {
+      // Lunch break
+      if (p === Math.floor(ppd / 2)) {
+        const lunchRow = ['午休'];
+        for (let d = 0; d < 5; d++) {
+          for (let ci = 0; ci < N; ci++) lunchRow.push('');
+          lunchRow.push('');
+        }
+        schedData.push(lunchRow);
+      }
+
+      const row = ['第' + (p+1) + '节'];
+      for (let d = 0; d < 5; d++) {
+        for (let ci = 0; ci < N; ci++) {
+          const cell = state.schedule.grid[d][p][ci];
+          row.push(cell ? cell.sub + cell.abbr : '');
+        }
+        const wc = state.schedule.walkGrid[d][p];
+        row.push(wc ? wc.sub + wc.abbr : '');
+      }
+      schedData.push(row);
+    }
+
+    const ws2 = XLSX.utils.aoa_to_sheet(schedData);
+    XLSX.utils.book_append_sheet(wb, ws2, '课程表');
+  }
+
+  XLSX.writeFile(wb, '排课系统导出.xlsx');
+  showToast('导出成功', 'success');
+}
+
+/* ============================================================
+   EXCEL IMPORT
+   ============================================================ */
+function triggerImport() {
+  document.getElementById('importFileInput').click();
+}
+
+async function handleImportFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+
+  try {
+    await ensureSheetJS();
+  } catch (e) {
+    showToast('加载 SheetJS 失败', 'error');
+    return;
+  }
+
+  const data = await file.arrayBuffer();
+  const wb = XLSX.read(data, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+  if (!rows.length) { showToast('文件为空', 'warning'); return; }
+
+  // Find header row: look for row containing "序号" AND "姓名"
+  let headerIdx = -1;
+  for (let r = 0; r < Math.min(10, rows.length); r++) {
+    const row = rows[r];
+    if (!row) continue;
+    const text = row.map(c => (c || '').toString()).join('');
+    if (text.includes('序号') && text.includes('姓名')) {
+      headerIdx = r;
+      break;
+    }
+  }
+
+  if (headerIdx < 0) { showToast('无法识别表格格式', 'warning'); return; }
+
+  const header = rows[headerIdx].map(h => (h || '').toString().trim());
+
+  // Detect all regions by finding "序号" columns
+  const regionStarts = [];
+  for (let i = 0; i < header.length; i++) {
+    if (header[i] === '序号') regionStarts.push(i);
+  }
+
+  if (!regionStarts.length) { showToast('未找到数据区域', 'warning'); return; }
+
+  // For each region, detect local column offsets
+  const regions = regionStarts.map(start => {
+    const map = { start };
+    // Scan up to 7 columns from start for local headers
+    for (let i = start; i < Math.min(start + 7, header.length); i++) {
+      const h = header[i];
+      if (h === '序号') map.idx = i;
+      else if (h.includes('科目')) map.subject = i;
+      else if (h.includes('姓名')) map.name = i;
+      else if (h.includes('简称')) map.abbr = i;
+      else if (h.includes('任教') || h.includes('班级')) map.classes = i;
+      else if (h === '上课' || h.includes('课时')) map.hours = i;
+    }
+    return map;
+  });
+
+  // Filter regions that have at least name column
+  const validRegions = regions.filter(r => r.name !== undefined);
+  if (!validRegions.length) { showToast('未找到有效的教师数据列', 'warning'); return; }
+
+  // Skip entries that are clearly not teachers
+  const skipPatterns = ['产假', '退休', '心理健康', '内宿生管理', '计算机', '听说训练', '合计', '各班组合', '各 班 组 合', '班主任'];
+  function shouldSkip(str) {
+    if (!str) return false;
+    return skipPatterns.some(p => str.includes(p));
+  }
+
+  // Parse class string with walk class support
+  function parseClassesFull(str) {
+    if (!str) return { regular: [], walk: [] };
+    const s = str.toString().trim();
+    if (shouldSkip(s)) return { regular: [], walk: [] };
+
+    const regular = [];
+    const walk = [];
+
+    let working = s;
+
+    // Remove "合格性X-Y班" segments (qualifying exam, not real classes)
+    working = working.replace(/合格性\s*\d+\s*[-~—]\s*\d+\s*班?/g, '');
+    // Also remove standalone "合格性" if it somehow remains
+    working = working.replace(/合格性/g, '');
+
+    // Check if string starts with "走班" - if so, all classes are walk
+    const startsWithWalk = /^\s*走班/.test(working);
+
+    // Extract explicit "走班N" patterns
+    const walkMatches = working.match(/走班\s*(\d+)/g);
+    if (walkMatches) {
+      walkMatches.forEach(m => {
+        const n = parseInt(m.replace(/走班\s*/, ''));
+        if (!isNaN(n)) walk.push(n);
+      });
+      working = working.replace(/走班\s*\d+/g, '');
+    }
+
+    // Parse remaining numbers as classes
+    const parts = working.replace(/班/g, '').split(/[、，,\s]+/);
+    parts.forEach(p => {
+      p = p.trim();
+      if (!p) return;
+      const rangeMatch = p.match(/^(\d+)\s*[-~—]\s*(\d+)$/);
+      if (rangeMatch) {
+        const a = parseInt(rangeMatch[1]), b = parseInt(rangeMatch[2]);
+        for (let i = a; i <= b; i++) {
+          if (startsWithWalk) walk.push(i); else regular.push(i);
+        }
+      } else {
+        const n = parseInt(p);
+        if (!isNaN(n) && n >= 1) {
+          if (startsWithWalk) walk.push(n); else regular.push(n);
+        }
+      }
+    });
+
+    return {
+      regular: [...new Set(regular)].sort((a, b) => a - b),
+      walk: [...new Set(walk)].sort((a, b) => a - b)
+    };
+  }
+
+  // Parse data rows
+  const imported = [];
+  let detectedClassCount = state.classCount;
+
+  validRegions.forEach(region => {
+    // Track current subject for inheritance
+    let currentSubject = '';
+
+    for (let r = headerIdx + 1; r < rows.length; r++) {
+      const row = rows[r];
+      if (!row || !row.length) continue;
+
+      const name = region.name !== undefined ? (row[region.name] || '').toString().trim() : '';
+      if (!name) continue;
+      if (shouldSkip(name)) continue;
+
+      // Subject: use current cell if present, otherwise inherit
+      let subjectRaw = region.subject !== undefined ? (row[region.subject] || '').toString().trim() : '';
+      if (subjectRaw) {
+        // Extract subject name: "语文14" -> "语文", "化学6" -> "化学"
+        currentSubject = subjectRaw.replace(/\d+$/, '').trim();
+      }
+      const subject = currentSubject;
+      if (!subject) continue;
+
+      const abbr = region.abbr !== undefined ? (row[region.abbr] || '').toString().trim() : '';
+      if (!abbr) continue; // Skip rows without abbreviation (likely not a teacher)
+
+      const classesStr = region.classes !== undefined ? (row[region.classes] || '').toString().trim() : '';
+      if (shouldSkip(classesStr)) continue;
+
+      const hoursVal = region.hours !== undefined ? row[region.hours] : 0;
+      const hours = parseFloat(hoursVal) || 0;
+
+      // Parse classes
+      const { regular, walk } = parseClassesFull(classesStr);
+
+      // Skip if no valid classes at all (e.g. only had "合格性" classes, or no classes)
+      if (regular.length === 0 && walk.length === 0) continue;
+
+      // Build classTypeAssignments: default all to 常规班 (typeIdx 0)
+      const classTypeAssignments = {};
+      if (regular.length) {
+        classTypeAssignments[0] = regular; // 0 = first type (常规班)
+        regular.forEach(c => { if (c > detectedClassCount) detectedClassCount = c; });
+      }
+      if (walk.length) {
+        // Find or create 走班 type
+        let walkTypeIdx = state.classTypes.findIndex(ct => ct.mode === '走班');
+        if (walkTypeIdx < 0) walkTypeIdx = -1; // will be handled at import
+        classTypeAssignments[walkTypeIdx >= 0 ? walkTypeIdx : -1] = walk;
+        walk.forEach(c => { if (c > detectedClassCount) detectedClassCount = c; });
+      }
+
+      imported.push({
+        name: name,
+        abbr: abbr,
+        subject: subject,
+        hours: hours,
+        classTypeAssignments: classTypeAssignments
+      });
+    }
+  });
+
+  if (!imported.length) { showToast('未解析到教师数据', 'warning'); return; }
+
+  // Show preview modal
+  importPreviewData = { imported, detectedClassCount, header, regionCount: validRegions.length };
+  renderImportPreview();
+  document.getElementById('importModalOverlay').classList.add('show');
+}
+
+function renderImportPreview() {
+  const body = document.getElementById('importModalBody');
+  if (!importPreviewData) return;
+  const { imported, detectedClassCount, regionCount } = importPreviewData;
+
+  let html = '<div class="import-info">';
+  html += `<p>识别到 <strong>${regionCount || 1}</strong> 个数据区域，解析到 <strong>${imported.length}</strong> 位教师</p>`;
+  html += `<p>检测到班级数: <strong>${detectedClassCount}</strong>（所有班级默认为常规班）</p>`;
+  html += '</div>';
+
+  html += `<div class="import-checkbox-row">
+    <input type="checkbox" class="import-checkbox" id="syncClassCount" checked>
+    <label for="syncClassCount">同步班级数为 ${detectedClassCount}</label>
+  </div>`;
+
+  html += '<table class="import-table"><thead><tr><th>姓名</th><th>简称</th><th>科目</th><th>周课时</th><th>任教班级</th></tr></thead><tbody>';
+  imported.forEach((t, i) => {
+    let classStr = '';
+    Object.entries(t.classTypeAssignments).forEach(([ti, cls]) => {
+      const idx = parseInt(ti);
+      const ct = idx >= 0 ? state.classTypes[idx] : null;
+      const typeName = ct ? ct.name : (idx === -1 ? '走班' : '未知');
+      classStr += (classStr ? ' | ' : '') + typeName + ':' + cls.join(',');
+    });
+    html += `<tr>
+      <td><input value="${esc(t.name)}" onchange="importPreviewData.imported[${i}].name=this.value"></td>
+      <td><input value="${esc(t.abbr)}" onchange="importPreviewData.imported[${i}].abbr=this.value" style="width:60px"></td>
+      <td><input value="${esc(t.subject)}" onchange="importPreviewData.imported[${i}].subject=this.value" style="width:60px"></td>
+      <td><input type="number" value="${t.hours}" onchange="importPreviewData.imported[${i}].hours=parseInt(this.value)||0" style="width:50px"></td>
+      <td style="font-size:0.78rem;color:var(--text-secondary)">${esc(classStr || '-')}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+
+  body.innerHTML = html;
+}
+
+function closeImportModal() {
+  document.getElementById('importModalOverlay').classList.remove('show');
+  importPreviewData = null;
+}
+
+function confirmImport() {
+  if (!importPreviewData) return;
+  pushUndo();
+
+  const syncEl = document.getElementById('syncClassCount');
+  if (syncEl && syncEl.checked) {
+    state.classCount = importPreviewData.detectedClassCount;
+  }
+
+  // Ensure 走班 type exists if any walk classes are imported
+  const hasWalkClasses = importPreviewData.imported.some(t => t.classTypeAssignments[-1]);
+  if (hasWalkClasses && state.classTypes.findIndex(ct => ct.mode === '走班') < 0) {
+    const slots = [];
+    for (let i = 1; i <= state.periodsPerDay; i++) slots.push(i);
+    state.classTypes.push({ name: '走班', mode: '走班', weekType: '每周', fixedHours: 0, allowedSlots: slots });
+  }
+
+  // Re-map walk class type index from -1 to actual index
+  const walkTypeIdx = state.classTypes.findIndex(ct => ct.mode === '走班');
+
+  // Ensure subjects exist
+  const imported = importPreviewData.imported;
+  const subjectSet = new Set(state.subjects.map(s => s.name));
+  imported.forEach(t => {
+    if (t.subject && !subjectSet.has(t.subject)) {
+      const colors = ['#c0392b','#2980b9','#27ae60','#8e44ad','#d35400','#16a085','#f39c12'];
+      state.subjects.push({ name: t.subject, color: colors[state.subjects.length % colors.length] });
+      subjectSet.add(t.subject);
+    }
+  });
+
+  // Add teachers
+  imported.forEach(t => {
+    if (!t.subject) return;
+    if (!state.teachers[t.subject]) state.teachers[t.subject] = [];
+
+    // Fix classTypeAssignments: remap -1 to actual walkTypeIdx
+    const fixedAssignments = {};
+    Object.entries(t.classTypeAssignments).forEach(([key, cls]) => {
+      const k = parseInt(key);
+      if (k === -1 && walkTypeIdx >= 0) {
+        fixedAssignments[walkTypeIdx] = cls;
+      } else if (k >= 0) {
+        fixedAssignments[k] = cls;
+      }
+    });
+
+    // Auto-distribute hours
+    const classes = [];
+    Object.values(fixedAssignments).forEach(cls => cls.forEach(c => { if (!classes.includes(c)) classes.push(c); }));
+    const n = classes.length;
+    const base = n ? Math.floor(t.hours / n) : 0;
+    let rem = n ? t.hours - base * n : 0;
+    const classHours = {};
+    classes.sort((a, b) => a - b).forEach(c => {
+      const h = base + (rem > 0 ? 1 : 0);
+      classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+      if (rem > 0) rem--;
+    });
+
+    state.teachers[t.subject].push({
+      name: t.name,
+      abbr: t.abbr,
+      classTypeAssignments: fixedAssignments,
+      hours: t.hours,
+      classHours
+    });
+  });
+
+  closeImportModal();
+  render();
+  showToast(`成功导入 ${imported.length} 位教师`, 'success');
+}
+
+/* ============================================================
+   CLEAR ALL
+   ============================================================ */
+function clearAll() {
+  pushUndo();
+  state = createDefaultState();
+  render();
+  showToast('已清空所有数据，可撤销恢复', 'info');
+}
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+function esc(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ============================================================
+   EVENT HANDLERS
+   ============================================================ */
+function setupEventHandlers() {
+  // Navbar inputs
+  document.getElementById('inputClassCount').addEventListener('change', function() {
+    const val = parseInt(this.value);
+    if (val >= 1 && val <= 30 && val !== state.classCount) {
+      pushUndo();
+      state.classCount = val;
+      // Update allowed slots for all types
+      state.classTypes.forEach(ct => {
+        ct.allowedSlots = ct.allowedSlots.filter(s => s <= state.periodsPerDay);
+      });
+      render();
+    }
+  });
+
+  document.getElementById('inputPeriods').addEventListener('change', function() {
+    const val = parseInt(this.value);
+    if (val >= 1 && val <= 12 && val !== state.periodsPerDay) {
+      pushUndo();
+      state.periodsPerDay = val;
+      state.classTypes.forEach(ct => {
+        ct.allowedSlots = ct.allowedSlots.filter(s => s <= val);
+      });
+      if (state.classMeeting.period >= val) state.classMeeting.period = val - 1;
+      render();
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+      else if (e.key === 'y' || (e.key === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+    }
+  });
+
+  // Close modals on overlay click
+  document.getElementById('configModalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeConfigModal();
+  });
+  document.getElementById('importModalOverlay').addEventListener('click', function(e) {
+    if (e.target === this) closeImportModal();
+  });
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+function init() {
+  loadFromLocal();
+  setupEventHandlers();
+  render();
+  updateUndoRedoButtons();
+}
+
+// Run on DOM ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+</script>
+</body>
+</html>
