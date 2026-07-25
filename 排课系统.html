@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>高中智能排课系统</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Cormorant+Garamond:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --navy: #0f1a2e;
@@ -39,8 +38,8 @@
   --shadow-xl: 0 16px 48px rgba(15,26,46,0.2);
   --transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
   --transition-fast: all 0.15s ease;
-  --font-serif: 'Noto Serif SC', 'SimSun', serif;
-  --font-garamond: 'Cormorant Garamond', 'Noto Serif SC', serif;
+  --font-serif: 'SimSun', 'Noto Serif SC', 'Noto Sans CJK SC', serif;
+  --font-garamond: 'SimSun', 'Noto Serif SC', serif;
   --radius: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
@@ -54,7 +53,7 @@ body {
   color: var(--text);
   line-height: 1.6;
   min-height: 100vh;
-  padding-top: calc(var(--navbar-h) + 6px);
+  padding-top: calc(var(--navbar-h) + 16px);
 }
 /* Scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -392,7 +391,7 @@ body {
   min-width:52px; position:sticky; left:0; z-index:5;
 }
 .schedule-table td {
-  height:56px; min-width:52px;
+  height:64px; min-width:52px;
   position:relative;
   transition:var(--transition-fast);
   cursor:default;
@@ -413,7 +412,7 @@ body {
 .slot-content {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-  display:flex; flex-direction:column;
+  display:flex; flex-direction:row;
   align-items:center; justify-content:center;
   gap:2px; line-height:1.2;
 }
@@ -857,6 +856,7 @@ function createDefaultState() {
       mode: '常规',
       weekType: '每周',
       fixedHours: 0,
+      useFixedHours: false,
       allowedSlots: []
     }],
     teachers: {},
@@ -934,7 +934,10 @@ function loadFromLocal() {
             Object.keys(t.classHours).forEach(c => {
               if (typeof t.classHours[c] === 'number') {
                 const h = t.classHours[c];
-                t.classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+                t.classHours[c] = { fixed: h, singleDouble: 0 };
+              } else if (t.classHours[c].single !== undefined || t.classHours[c].double !== undefined) {
+                const old = t.classHours[c];
+                t.classHours[c] = { fixed: old.fixed || 0, singleDouble: (old.single || 0) + (old.double || 0) + (old.pending || 0) };
               }
             });
           });
@@ -942,10 +945,13 @@ function loadFromLocal() {
       });
     }
     if (!data.classTypes || !data.classTypes.length) {
-      data.classTypes = [{ name:'普通班', mode:'常规', weekType:'每周', fixedHours:0, allowedSlots:[] }];
+      data.classTypes = [{ name:'普通班', mode:'常规', weekType:'每周', fixedHours: 0,
+      useFixedHours: false,
+      allowedSlots:[] }];
     }
     data.classTypes.forEach(ct => {
       if (!ct.allowedSlots) ct.allowedSlots = [];
+      if (ct.useFixedHours === undefined) ct.useFixedHours = (ct.fixedHours || 0) > 0;
     });
     if (!data.classMeeting) data.classMeeting = { enabled:false, day:0, period:0 };
     if (!data.remarks) data.remarks = '';
@@ -1005,7 +1011,7 @@ function renderClassTypes() {
   let html = '';
   state.classTypes.forEach((ct, i) => {
     const slotsHtml = renderSlotButtons(ct.allowedSlots, state.periodsPerDay, i);
-    html += `<div class="type-card animate-fade">
+    html += `<div class="type-card">
       <div class="type-card-header">
         <input class="type-card-name" value="${esc(ct.name)}" onchange="updateClassType(${i},'name',this.value)">
         <span role="button" tabindex="0" style="font-size:0.75rem;cursor:pointer;color:rgba(255,255,255,0.5)" onclick="deleteClassType(${i})" title="删除">&#10005;</span>
@@ -1013,23 +1019,25 @@ function renderClassTypes() {
       <div class="type-card-body">
         <div class="type-card-row">
           <label>模式</label>
-          <select class="type-select" onchange="updateClassType(${i},'mode',this.value)">
+          <select class="type-select" onchange="updateClassTypeLocal(${i},'mode',this.value)">
             <option value="常规" ${ct.mode==='常规'?'selected':''}>常规</option>
             <option value="走班" ${ct.mode==='走班'?'selected':''}>走班</option>
           </select>
         </div>
         <div class="type-card-row">
           <label>周类型</label>
-          <select class="type-select" onchange="updateClassType(${i},'weekType',this.value)">
+          <select class="type-select" onchange="updateClassTypeLocal(${i},'weekType',this.value)">
             <option value="每周" ${ct.weekType==='每周'?'selected':''}>每周</option>
-            <option value="单周" ${ct.weekType==='单周'?'selected':''}>单周</option>
-            <option value="双周" ${ct.weekType==='双周'?'selected':''}>双周</option>
             <option value="单双周" ${ct.weekType==='单双周'?'selected':''}>单双周</option>
           </select>
         </div>
         <div class="type-card-row">
           <label>固定课时</label>
-          <input class="type-num-input" type="number" min="0" value="${ct.fixedHours||0}" onchange="updateClassType(${i},'fixedHours',parseInt(this.value)||0)">
+          <select class="type-select" onchange="updateClassTypeLocal(${i},'useFixedHours',this.value==='true')">
+            <option value="false" ${!ct.useFixedHours?'selected':''}>否（自动平均）</option>
+            <option value="true" ${ct.useFixedHours?'selected':''}>是（手动指定）</option>
+          </select>
+          ${ct.useFixedHours ? `<input class="type-num-input" type="number" min="0" value="${ct.fixedHours||0}" onchange="updateClassTypeLocal(${i},'fixedHours',parseInt(this.value)||0)" style="margin-left:6px;">` : ''}
         </div>
         <div class="type-card-row" style="flex-direction:column;align-items:flex-start;">
           <label>允许时段</label>
@@ -1057,6 +1065,7 @@ function addClassType() {
     mode: '常规',
     weekType: '每周',
     fixedHours: 0,
+    useFixedHours: false,
     allowedSlots: []
   });
   render();
@@ -1089,6 +1098,13 @@ function updateClassType(idx, field, value) {
   render();
 }
 
+function updateClassTypeLocal(idx, field, value) {
+  pushUndo();
+  state.classTypes[idx][field] = value;
+  renderClassTypes();
+  saveToLocal();
+}
+
 function toggleSlot(typeIdx, slot) {
   pushUndo();
   const ct = state.classTypes[typeIdx];
@@ -1096,7 +1112,8 @@ function toggleSlot(typeIdx, slot) {
   if (pos >= 0) ct.allowedSlots.splice(pos, 1);
   else ct.allowedSlots.push(slot);
   ct.allowedSlots.sort((a, b) => a - b);
-  render();
+  renderClassTypes();
+  saveToLocal();
 }
 
 /* ============================================================
@@ -1273,7 +1290,7 @@ function renderTeachers() {
     if (t.classHours) {
       Object.values(t.classHours).forEach(ch => {
         if (typeof ch === 'number') totalH += ch;
-        else totalH += (ch.fixed || 0) + (ch.single || 0) + (ch.double || 0) + (ch.pending || 0);
+        else totalH += (ch.fixed || 0) + (ch.singleDouble || 0);
       });
     }
     if (!totalH && t.hours) totalH = t.hours;
@@ -1400,41 +1417,33 @@ function renderConfigModalBody(t) {
     hoursHtml = `<div class="hours-section">
       <div class="hours-section-title">&#9202; 各班课时分配</div>
       <table class="hours-table" id="hoursTable">
-        <thead><tr><th>班级</th><th>班种</th><th>固定课时</th><th>单周</th><th>双周</th><th>待定</th><th>合计</th></tr></thead><tbody>`;
+        <thead><tr><th>班级</th><th>班种</th><th>固定课时</th><th>单双周</th><th>合计</th></tr></thead><tbody>`;
     assignedClasses.forEach(c => {
       const ch = classHours[c] || {};
       const fixed = ch.fixed || 0;
-      const single = ch.single || 0;
-      const double = ch.double || 0;
-      const pending = ch.pending || 0;
-      const total = fixed + single + double + pending;
-      const note = pending > 0 ? '<span style="font-size:0.68rem;color:var(--gold-dark);display:block;margin-top:2px;">暂未区分单双周</span>' : '';
+      const sd = ch.singleDouble || 0;
+      const total = fixed + sd;
       hoursHtml += `<tr>
         <td>${c}班</td>
         <td style="font-size:0.78rem;color:var(--text-secondary)">${esc((classNames[c]||[]).join(','))}</td>
         <td><input type="number" min="0" value="${fixed}" onchange="onHoursChange(${c},'fixed',this.value)" style="width:40px"></td>
-        <td><input type="number" min="0" value="${single}" onchange="onHoursChange(${c},'single',this.value)" style="width:40px"></td>
-        <td><input type="number" min="0" value="${double}" onchange="onHoursChange(${c},'double',this.value)" style="width:40px"></td>
-        <td><input type="number" min="0" value="${pending}" onchange="onHoursChange(${c},'pending',this.value)" style="width:40px">${note}</td>
+        <td><input type="number" min="0" value="${sd}" onchange="onHoursChange(${c},'singleDouble',this.value)" style="width:40px"></td>
         <td style="text-align:center;font-weight:600;color:var(--navy)">${total}</td>
       </tr>`;
     });
     hoursHtml += '</tbody></table>';
 
     // Summary
-    let sumFixed = 0, sumSingle = 0, sumDouble = 0, sumPending = 0;
+    let sumFixed = 0, sumSD = 0;
     assignedClasses.forEach(c => {
       const ch = classHours[c] || {};
       sumFixed += ch.fixed || 0;
-      sumSingle += ch.single || 0;
-      sumDouble += ch.double || 0;
-      sumPending += ch.pending || 0;
+      sumSD += ch.singleDouble || 0;
     });
-    const sumTotal = sumFixed + sumSingle + sumDouble + sumPending;
+    const sumTotal = sumFixed + sumSD;
     let summaryText = `合计: ${sumTotal}`;
     if (sumFixed > 0) summaryText += ` | 固定: ${sumFixed}`;
-    if (sumSingle > 0 || sumDouble > 0) summaryText += ` | 单周: ${sumSingle}，双周: ${sumDouble}`;
-    if (sumPending > 0) summaryText += ` | 待定: ${sumPending}`;
+    if (sumSD > 0) summaryText += ` | 单双周: ${sumSD}`;
     const match = sumTotal === totalH;
     hoursHtml += `<div class="hours-summary ${match?'match':'mismatch'}">${summaryText}</div></div>`;
   }
@@ -1484,26 +1493,16 @@ function onHoursChange(classNum, field, rawVal) {
   if (!configTarget) return;
   const t = state.teachers[configTarget.subject][configTarget.index];
   if (!t.classHours) t.classHours = {};
-  if (!t.classHours[classNum]) t.classHours[classNum] = { fixed: 0, single: 0, double: 0, pending: 0 };
+  if (!t.classHours[classNum]) t.classHours[classNum] = { fixed: 0, singleDouble: 0 };
 
   const ch = t.classHours[classNum];
   const val = Math.max(0, parseInt(rawVal) || 0);
   ch[field] = val;
 
-  // Mutual exclusion: single/double vs pending
-  if (field === 'pending' && val > 0) {
-    // Clear single and double
-    ch.single = 0;
-    ch.double = 0;
-  } else if ((field === 'single' || field === 'double') && val > 0) {
-    // Clear pending
-    ch.pending = 0;
-  }
-
   // Update total to match sum across all classes
   let sum = 0;
   Object.values(t.classHours).forEach(cc => {
-    sum += (cc.fixed || 0) + (cc.single || 0) + (cc.double || 0) + (cc.pending || 0);
+    sum += (cc.fixed || 0) + (cc.singleDouble || 0);
   });
   t.hours = sum;
   renderConfigModalBody(t);
@@ -1552,20 +1551,31 @@ function removeFromClassType(typeIdx, classNum) {
 }
 
 function redistributeHours(t) {
+  const classWeekType = {};
   const classes = [];
-  Object.values(t.classTypeAssignments || {}).forEach(cls => cls.forEach(c => { if (!classes.includes(c)) classes.push(c); }));
+  Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+    const ct = state.classTypes[parseInt(ti)];
+    if (!ct) return;
+    cls.forEach(c => {
+      if (!classes.includes(c)) classes.push(c);
+      classWeekType[c] = ct.weekType;
+    });
+  });
   classes.sort((a, b) => a - b);
   const total = t.hours || 0;
   if (!classes.length) { t.classHours = {}; return; }
 
-  // Preserve existing per-class breakdown, just redistribute evenly as fixed
   const n = classes.length;
   const base = Math.floor(total / n);
   let remainder = total - base * n;
   t.classHours = {};
   classes.forEach(c => {
     const h = base + (remainder > 0 ? 1 : 0);
-    t.classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+    if (classWeekType[c] === '单双周') {
+      t.classHours[c] = { fixed: 0, singleDouble: h };
+    } else {
+      t.classHours[c] = { fixed: h, singleDouble: 0 };
+    }
     if (remainder > 0) remainder--;
   });
 }
@@ -1576,7 +1586,7 @@ function buildPreviewText(t) {
   Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
     const ct = state.classTypes[parseInt(ti)];
     if (!ct || !cls.length) return;
-    parts.push(`${esc(ct.name)}[${ct.mode},${ct.weekType}]: ${cls.map(c => c+'班').join('、')}`);
+    parts.push(`${esc(ct.name)}[${ct.mode}${ct.weekType==='每周'?'':','+ct.weekType}]: ${cls.map(c => c+'班').join('、')}`);
   });
   return parts.join('<br>');
 }
@@ -1656,18 +1666,25 @@ function renderSchedule() {
         for (let ci = 0; ci < N; ci++) {
           const cell = grid[d] && grid[d][p] && grid[d][p][ci] ? grid[d][p][ci] : null;
           if (cell) {
-            const color = SUBJECT_COLORS[cell.sub] || '#999';
-            const oeHtml = cell.oddEven ? `<span class="slot-odd-even ${cell.oddEven}">${cell.oddEven==='odd'?'单':'双'}</span>` : '';
-            html += `<td><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(cell.sub)}</span><span class="slot-abbr">${esc(cell.abbr)}</span></div>${oeHtml}</td>`;
+            const color = '#2c2c2c';
+            if (cell.paired) {
+              // Paired SingleDouble slot - show both subjects vertically
+              html += `<td><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(cell.sub)}</span><span class="slot-abbr">${esc(cell.abbr)}</span></div><div style="width:1px;height:70%;background:#ccc;position:absolute;left:50%;top:15%;"></div><div class="slot-content" style="position:absolute;top:50%;left:0;right:0;height:50%;"><span class="slot-sub" style="color:${color}">${esc(cell.paired.subject)}</span><span class="slot-abbr">${esc(cell.paired.abbr)}</span></div></td>`;
+            } else if (cell.oddEven) {
+              // Standalone SingleDouble slot
+              html += `<td><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(cell.sub)}</span><span class="slot-abbr">${esc(cell.abbr)}</span></div><span class="slot-odd-even ${cell.oddEven}">${cell.oddEven==='odd'?'单':'双'}</span></td>`;
+            } else {
+              html += `<td><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(cell.sub)}</span><span class="slot-abbr">${esc(cell.abbr)}</span></div></td>`;
+            }
           } else {
             html += '<td></td>';
           }
         }
-        // Walk column
+        // Walk column - different color to stand out
         const wCell = walkGrid[d] && walkGrid[d][p] ? walkGrid[d][p] : null;
         if (wCell) {
-          const color = SUBJECT_COLORS[wCell.sub] || '#999';
-          html += `<td style="background:rgba(200,150,62,0.04);"><div class="slot-content"><span class="slot-sub" style="color:${color}">${esc(wCell.sub)}</span><span class="slot-abbr">${esc(wCell.abbr)}</span></div></td>`;
+          const wColor = SUBJECT_COLORS[wCell.sub] || '#c8963e';
+          html += `<td style="background:rgba(200,150,62,0.08);"><div class="slot-content"><span class="slot-sub" style="color:${wColor}">${esc(wCell.sub)}</span><span class="slot-abbr">${esc(wCell.abbr)}</span></div></td>`;
         } else {
           html += '<td style="background:rgba(200,150,62,0.04);"></td>';
         }
@@ -1704,6 +1721,33 @@ async function runScheduling() {
   pushUndo();
   state.errors = [];
   state.schedule = null;
+
+  // Smart sync: ensure all teachers have valid classHours before scheduling
+  state.subjects.forEach(subj => {
+    (state.teachers[subj.name] || []).forEach(t => {
+      if (!t.classHours) t.classHours = {};
+      // Migrate old format
+      Object.keys(t.classHours).forEach(c => {
+        const ch = t.classHours[c];
+        if (typeof ch === 'number') {
+          t.classHours[c] = { fixed: ch, singleDouble: 0 };
+        } else if (ch.single !== undefined || ch.double !== undefined) {
+          t.classHours[c] = { fixed: ch.fixed || 0, singleDouble: (ch.single || 0) + (ch.double || 0) + (ch.pending || 0) };
+        }
+      });
+      // Check if classHours sum matches t.hours
+      let sum = 0;
+      Object.values(t.classHours).forEach(ch => {
+        sum += (ch.fixed || 0) + (ch.singleDouble || 0);
+      });
+      const assignedClasses = [];
+      Object.values(t.classTypeAssignments || {}).forEach(cls => cls.forEach(c => { if (!assignedClasses.includes(c)) assignedClasses.push(c); }));
+      // If sum is 0 but teacher has total hours and assigned classes, redistribute
+      if (sum === 0 && t.hours > 0 && assignedClasses.length > 0) {
+        redistributeHours(t);
+      }
+    });
+  });
 
   // Validate
   const tasks = buildTasks();
@@ -1763,7 +1807,8 @@ async function runScheduling() {
             grid[slot.day][slot.period][slot.classNum - 1] = {
               sub: task.subject,
               abbr: task.abbr,
-              oddEven: task.oddEven
+              oddEven: task.oddEven,
+              paired: task.paired || null
             };
           }
           placed++;
@@ -1789,7 +1834,8 @@ async function runScheduling() {
         grid[slot.day][slot.period][slot.classNum - 1] = {
           sub: task.subject,
           abbr: task.abbr,
-          oddEven: task.oddEven
+          oddEven: task.oddEven,
+          paired: task.paired || null
         };
       }
       placed++;
@@ -1814,6 +1860,8 @@ async function runScheduling() {
 
 function buildTasks() {
   const tasks = [];
+  const weeklyTasks = [];
+  const sdByClass = {}; // grouped by classNum for pairing
   state.subjects.forEach(subj => {
     const teachers = state.teachers[subj.name] || [];
     teachers.forEach(t => {
@@ -1822,32 +1870,69 @@ function buildTasks() {
         if (!ct) return;
         cls.forEach(classNum => {
           const ch = t.classHours && t.classHours[classNum];
-          const hours = ch ? (ch.fixed || 0) + (ch.single || 0) + (ch.double || 0) + (ch.pending || 0) : 0;
-          if (hours <= 0) return;
-          let oddEven = null;
-          if (ct.weekType === '单周') oddEven = 'odd';
-          else if (ct.weekType === '双周') oddEven = 'even';
+          const fixedH = ch ? (ch.fixed || 0) : 0;
+          const sdH = ch ? (ch.singleDouble || 0) : 0;
 
-          // For单双周, we still schedule the same number of slots
-          // but mark them with oddEven
-          tasks.push({
-            subject: subj.name,
-            teacherName: t.name,
-            abbr: t.abbr,
-            classNum: classNum,
-            typeMode: ct.mode,
-            typeIdx: parseInt(ti),
-            weekType: ct.weekType,
-            oddEven: oddEven,
-            hours: hours,
-            allowedSlots: ct.allowedSlots,
-            isMain: MAIN_SUBJECTS.includes(subj.name)
-          });
+          // Regular weekly tasks
+          for (let h = 0; h < fixedH; h++) {
+            weeklyTasks.push({
+              subject: subj.name, teacherName: t.name, abbr: t.abbr,
+              classNum, typeMode: ct.mode, typeIdx: parseInt(ti),
+              weekType: ct.weekType, oddEven: null,
+              hours: 1, allowedSlots: ct.allowedSlots,
+              isMain: MAIN_SUBJECTS.includes(subj.name), paired: null
+            });
+          }
+
+          // SingleDouble tasks - collect for pairing
+          if (sdH > 0) {
+            if (!sdByClass[classNum]) sdByClass[classNum] = [];
+            for (let h = 0; h < sdH; h++) {
+              sdByClass[classNum].push({
+                subject: subj.name, teacherName: t.name, abbr: t.abbr,
+                classNum, typeMode: ct.mode, typeIdx: parseInt(ti),
+                weekType: '单双周', oddEven: 'odd',
+                hours: 1, allowedSlots: ct.allowedSlots,
+                isMain: MAIN_SUBJECTS.includes(subj.name), paired: null
+              });
+            }
+          }
         });
       });
     });
   });
-  return tasks;
+
+  // Pair SingleDouble tasks: match different subjects within the same class
+  Object.entries(sdByClass).forEach(([classNum, sdTasks]) => {
+    const used = new Set();
+    for (let i = 0; i < sdTasks.length; i++) {
+      if (used.has(i)) continue;
+      for (let j = i + 1; j < sdTasks.length; j++) {
+        if (used.has(j)) continue;
+        if (sdTasks[i].subject !== sdTasks[j].subject) {
+          // Pair them
+          const a = { ...sdTasks[i] };
+          const b = { ...sdTasks[j] };
+          a.oddEven = 'odd';
+          b.oddEven = 'even';
+          a.paired = { subject: b.subject, teacherName: b.teacherName, abbr: b.abbr, oddEven: 'even' };
+          b.paired = { subject: a.subject, teacherName: a.teacherName, abbr: a.abbr, oddEven: 'odd' };
+          weeklyTasks.push(a);
+          used.add(i);
+          used.add(j);
+          break;
+        }
+      }
+    }
+    // Unpaired SingleDouble tasks - schedule as standalone
+    for (let i = 0; i < sdTasks.length; i++) {
+      if (!used.has(i)) {
+        weeklyTasks.push({ ...sdTasks[i], oddEven: 'odd' });
+      }
+    }
+  });
+
+  return weeklyTasks;
 }
 
 function findBestSlot(task, grid, walkGrid, N, ppd, m, relaxed) {
@@ -1898,20 +1983,17 @@ function scoreSlot(task, d, p, grid, walkGrid, N, ppd, m, relaxed) {
     const ci = task.classNum - 1;
     if (ci < 0 || ci >= N) return -1;
     if (grid[d][p][ci]) {
-      // Check oddEven sharing
-      const existing = grid[d][p][ci];
-      if (task.oddEven && existing.oddEven && task.oddEven !== existing.oddEven) {
-        // Can share the slot
-      } else {
-        return -1; // slot occupied
-      }
+      return -1; // slot occupied - paired tasks take full slot
     }
     // Teacher conflict
     if (hasTeacherConflict(task, d, p, grid, walkGrid, N)) return -1;
   }
 
-  // Teacher daily limit (4 periods per day)
-  if (!relaxed && teacherDailyCount(task, d, grid, walkGrid, N) >= 4) return -1;
+  // Teacher daily limit (4 periods per day) - check both teachers for paired tasks
+  if (!relaxed) {
+    if (teacherDailyCountSingle(task, d, grid, walkGrid, N, task.abbr, task.subject) >= 4) return -1;
+    if (task.paired && teacherDailyCountSingle(task, d, grid, walkGrid, N, task.paired.abbr, task.paired.subject) >= 4) return -1;
+  }
 
   // Subject dispersion: max 2 per day per class
   if (!relaxed && task.typeMode === '常规') {
@@ -1926,7 +2008,7 @@ function scoreSlot(task, d, p, grid, walkGrid, N, ppd, m, relaxed) {
   if (task.isMain && p < Math.floor(ppd / 2)) score += 3;
 
   // Prefer slots where teacher has fewer classes that day
-  const tdc = teacherDailyCount(task, d, grid, walkGrid, N);
+  const tdc = teacherDailyCountSingle(task, d, grid, walkGrid, N, task.abbr, task.subject);
   score += (4 - tdc) * 0.5;
 
   // Prefer dispersion
@@ -1948,23 +2030,20 @@ function scoreSlot(task, d, p, grid, walkGrid, N, ppd, m, relaxed) {
 }
 
 function hasTeacherConflict(task, d, p, grid, walkGrid, N) {
-  // Check if this teacher is already teaching at [d][p]
   const t = getTeacherObj(task);
   if (!t) return false;
-  // Check regular grid
   for (let ci = 0; ci < N; ci++) {
     const cell = grid[d][p][ci];
-    if (cell && cell.abbr === task.abbr && cell.sub === task.subject) {
-      // Same teacher, check if it's a different class (conflict)
-      // Actually abbr+sub combo should be unique per teacher
-      return true;
+    if (cell) {
+      if (cell.abbr === task.abbr && cell.sub === task.subject) return true;
+      if (cell.paired && cell.paired.abbr === task.abbr && cell.paired.subject === task.subject) return true;
+      if (task.paired && task.paired.abbr === cell.abbr && task.paired.subject === cell.sub) return true;
+      if (task.paired && cell.paired && task.paired.abbr === cell.paired.abbr && task.paired.subject === cell.paired.subject) return true;
     }
   }
-  // Check walk grid
   const wCell = walkGrid[d][p];
-  if (wCell && wCell.abbr === task.abbr && wCell.sub === task.subject) {
-    return true;
-  }
+  if (wCell && wCell.abbr === task.abbr && wCell.sub === task.subject) return true;
+  if (task.paired && wCell && task.paired.abbr === wCell.abbr && task.paired.subject === wCell.sub) return true;
   return false;
 }
 
@@ -1973,10 +2052,30 @@ function teacherDailyCount(task, d, grid, walkGrid, N) {
   for (let p = 0; p < state.periodsPerDay; p++) {
     for (let ci = 0; ci < N; ci++) {
       const cell = grid[d][p][ci];
-      if (cell && cell.abbr === task.abbr && cell.sub === task.subject) count++;
+      if (cell) {
+        if (cell.abbr === task.abbr && cell.sub === task.subject) count++;
+        if (task.paired && cell.abbr === task.paired.abbr && cell.sub === task.paired.subject) count++;
+      }
     }
     const wCell = walkGrid[d][p];
     if (wCell && wCell.abbr === task.abbr && wCell.sub === task.subject) count++;
+    if (task.paired && wCell && wCell.abbr === task.paired.abbr && wCell.sub === task.paired.subject) count++;
+  }
+  return count;
+}
+
+function teacherDailyCountSingle(task, d, grid, walkGrid, N, checkAbbr, checkSub) {
+  let count = 0;
+  for (let p = 0; p < state.periodsPerDay; p++) {
+    for (let ci = 0; ci < N; ci++) {
+      const cell = grid[d][p][ci];
+      if (cell) {
+        if (cell.abbr === checkAbbr && cell.sub === checkSub) count++;
+        if (cell.paired && cell.paired.abbr === checkAbbr && cell.paired.subject === checkSub) count++;
+      }
+    }
+    const wCell = walkGrid[d][p];
+    if (wCell && wCell.abbr === checkAbbr && wCell.sub === checkSub) count++;
   }
   return count;
 }
@@ -1984,7 +2083,7 @@ function teacherDailyCount(task, d, grid, walkGrid, N) {
 function teacherDayCounts(task, grid, walkGrid, N) {
   const counts = [];
   for (let d = 0; d < 5; d++) {
-    counts.push(teacherDailyCount(task, d, grid, walkGrid, N));
+    counts.push(teacherDailyCountSingle(task, d, grid, walkGrid, N, task.abbr, task.subject));
   }
   return counts;
 }
@@ -1995,7 +2094,10 @@ function countSubjectInClassDay(task, d, grid, N) {
   let count = 0;
   for (let p = 0; p < state.periodsPerDay; p++) {
     const cell = grid[d][p][ci];
-    if (cell && cell.sub === task.subject) count++;
+    if (cell) {
+      if (cell.sub === task.subject) count++;
+      if (cell.paired && cell.paired.subject === task.subject) count++;
+    }
   }
   return count;
 }
@@ -2032,7 +2134,7 @@ async function exportExcel() {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Teacher list
-  const teacherData = [['科目', '姓名', '简称', '任教班级', '固定课时', '单周课时', '双周课时', '待定课时', '总课时', '班种']];
+  const teacherData = [['科目', '姓名', '简称', '任教班级', '固定课时', '单双周课时', '总课时', '班种']];
   state.subjects.forEach(subj => {
     const teachers = state.teachers[subj.name] || [];
     teachers.forEach(t => {
@@ -2044,13 +2146,13 @@ async function exportExcel() {
         classes.push(ct.name + ':' + cls.join(','));
         types.push(ct.name + '(' + ct.mode + ')');
       });
-      let sumFixed = 0, sumSingle = 0, sumDouble = 0, sumPending = 0;
+      let sumFixed = 0, sumSD = 0;
       Object.values(t.classHours || {}).forEach(ch => {
         if (typeof ch === 'number') { sumFixed += ch; }
-        else { sumFixed += ch.fixed || 0; sumSingle += ch.single || 0; sumDouble += ch.double || 0; sumPending += ch.pending || 0; }
+        else { sumFixed += ch.fixed || 0; sumSD += ch.singleDouble || 0; }
       });
-      const totalH = sumFixed + sumSingle + sumDouble + sumPending;
-      teacherData.push([subj.name, t.name, t.abbr, classes.join(' | '), sumFixed, sumSingle, sumDouble, sumPending, totalH, types.join('，')]);
+      const totalH = sumFixed + sumSD;
+      teacherData.push([subj.name, t.name, t.abbr, classes.join(' | '), sumFixed, sumSD, totalH, types.join('，')]);
     });
   });
   const ws1 = XLSX.utils.aoa_to_sheet(teacherData);
@@ -2086,7 +2188,13 @@ async function exportExcel() {
       for (let d = 0; d < 5; d++) {
         for (let ci = 0; ci < N; ci++) {
           const cell = state.schedule.grid[d][p][ci];
-          row.push(cell ? cell.sub + cell.abbr : '');
+          if (cell) {
+            let txt = cell.sub + cell.abbr;
+            if (cell.paired) txt += '/' + cell.paired.subject + cell.paired.abbr;
+            row.push(txt);
+          } else {
+            row.push('');
+          }
         }
         const wc = state.schedule.walkGrid[d][p];
         row.push(wc ? wc.sub + wc.abbr : '');
@@ -2403,7 +2511,7 @@ function confirmImport() {
     const classHours = {};
     classes.sort((a, b) => a - b).forEach(c => {
       const h = base + (rem > 0 ? 1 : 0);
-      classHours[c] = { fixed: h, single: 0, double: 0, pending: 0 };
+      classHours[c] = { fixed: h, singleDouble: 0 };
       if (rem > 0) rem--;
     });
 
