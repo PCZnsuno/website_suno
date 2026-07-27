@@ -1174,10 +1174,18 @@ function updateClassType(idx, field, value) {
 function toggleSlot(typeIdx, slot) {
   pushUndo();
   const ct = state.classTypes[typeIdx];
+  const ppd = state.periodsPerDay;
+  // If array is empty (all allowed), expand to explicit list first
+  if (ct.allowedSlots.length === 0) {
+    ct.allowedSlots = [];
+    for (let i = 1; i <= ppd; i++) ct.allowedSlots.push(i);
+  }
   const pos = ct.allowedSlots.indexOf(slot);
   if (pos >= 0) ct.allowedSlots.splice(pos, 1);
   else ct.allowedSlots.push(slot);
-  ct.allowedSlots.sort((a, b) => a - b);
+  // If all slots are selected, reset to empty (meaning all allowed)
+  if (ct.allowedSlots.length === ppd) ct.allowedSlots = [];
+  else ct.allowedSlots.sort((a, b) => a - b);
   saveToLocal();
   renderClassTypes();
 }
@@ -1785,7 +1793,7 @@ function renderSchedule() {
 
   // ------- Legend -------
   let placedTotal = 0, totalSlots = 5 * ppd * N;
-  for (let d=0;d<5;d++) for (let p=0;p<ppd;p++) for (let ci=0;ci<N;ci++) if(grid[d][p][ci]) placedTotal++;
+  for (let d=0;d<5;d++) for (let p=0;p<ppd;p++) { const row=grid[d]&&grid[d][p]; if(row) for (let ci=0;ci<N;ci++) if(row[ci]) placedTotal++; }
   const usedPct = totalSlots ? Math.round(placedTotal/totalSlots*100) : 0;
   html += `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-secondary);text-align:center;">已排 ${placedTotal} 节课，覆盖率 ${usedPct}%</div>`;
 
@@ -3196,7 +3204,7 @@ function setupEventHandlers() {
     if (val >= 1 && val <= 30 && val !== state.classCount) {
       pushUndo();
       state.classCount = val;
-      // Update allowed slots for all types
+      state.schedule = null; // grid dimensions changed, clear old schedule
       state.classTypes.forEach(ct => {
         ct.allowedSlots = ct.allowedSlots.filter(s => s <= state.periodsPerDay);
       });
@@ -3209,6 +3217,7 @@ function setupEventHandlers() {
     if (val >= 1 && val <= 12 && val !== state.periodsPerDay) {
       pushUndo();
       state.periodsPerDay = val;
+      state.schedule = null; // grid dimensions changed, clear old schedule
       state.classTypes.forEach(ct => {
         ct.allowedSlots = ct.allowedSlots.filter(s => s <= val);
       });
