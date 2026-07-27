@@ -2310,15 +2310,47 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
   const entriesByTeacherFinal = finalSorted.flat();
 
   // Phase 1: greedy placement with strict constraints
-  function placeEntries(elist) {
+  function placeEntries(elist, relaxed) {
     if (!elist) return;
     elist.forEach(entry=>{
       if (!entry || !entry.info || typeof entry.hours !== 'number') return;
       for (let h=0;h<entry.hours;h++) {
         let bestSlot=null,bestScore=-Infinity;
+        let bestDisplaceSlot=null, bestDisplaceScore=-Infinity, bestDisplaceEntry=null;
         for (let d=0;d<5;d++) {
           for (let p=0;p<ppd;p++) {
-            if (!slotOk(d,p,entry.classNum,entry.info,grid,N,ppd,m,true)) continue;
+            if (!slotOk(d,p,entry.classNum,entry.info,grid,N,ppd,m,true)) {
+              // Relaxed: if only blocked by an existing non-paired course (no cross-class teacher conflict), consider displacement
+              if (!relaxed) continue;
+              const ci = entry.classNum - 1;
+              if (ci < 0 || ci >= N) continue;
+              const existing = grid[d] && grid[d][p] ? grid[d][p][ci] : null;
+              if (!existing || existing.paired) continue;
+              // Check if there's a cross-class teacher conflict (can't displace that)
+              let crossConflict = false;
+              if (entry.info.abbr) {
+                for (let ci2 = 0; ci2 < N; ci2++) {
+                  if (ci2 === ci) continue;
+                  const c2 = grid[d][p][ci2];
+                  if (!c2) continue;
+                  if (c2._teacherKey && c2._teacherKey.startsWith(entry.info.abbr + '|')) { crossConflict = true; break; }
+                  if (c2.paired && c2.paired._teacherKey && c2.paired._teacherKey.startsWith(entry.info.abbr + '|')) { crossConflict = true; break; }
+                }
+              }
+              if (crossConflict) continue;
+              if (m && m.enabled && d === m.day && p === m.period) continue;
+              if (entry.info.allowedSlots && entry.info.allowedSlots.length > 0 && !entry.info.allowedSlots.includes(p + 1)) continue;
+              // Score this displacement candidate
+              let dscore = -5; // penalty for displacement
+              const tdc = tCountOnDay(entry.info.abbr, d, grid, N, ppd);
+              dscore += (4 - tdc) * 3;
+              if (dscore > bestDisplaceScore) {
+                bestDisplaceScore = dscore;
+                bestDisplaceSlot = { d, p };
+                bestDisplaceEntry = existing;
+              }
+              continue;
+            }
             let score=0;
 
             // Subject per-day cap: prefer ≤2, allow3 in emergency, block at4+
@@ -2409,6 +2441,41 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
                 _teacherKey:teacherKey(entry.info.abbr,entry.classNum)
               };
             }
+          } else if (relaxed && bestDisplaceSlot && bestDisplaceEntry) {
+            // Relaxed mode: displace existing course to make room
+            const ci = entry.classNum - 1;
+            const displaced = bestDisplaceEntry;
+            // Try to find empty slot for displaced course
+            let moved = false;
+            for (let d2 = 0; d2 < 5 && !moved; d2++) {
+              for (let p2 = 0; p2 < ppd && !moved; p2++) {
+                if (d2 === bestDisplaceSlot.d && p2 === bestDisplaceSlot.p) continue;
+                if (m && m.enabled && d2 === m.day && p2 === m.period) continue;
+                const existing2 = grid[d2][p2][ci];
+                if (existing2) continue;
+                // Check teacher conflict for displaced course at (d2,p2)
+                if (displaced.abbr) {
+                  let conflict = false;
+                  for (let ci3 = 0; ci3 < N; ci3++) {
+                    if (ci3 === ci) continue;
+                    const c3 = grid[d2][p2][ci3];
+                    if (!c3) continue;
+                    if (c3._teacherKey && c3._teacherKey.startsWith(displaced.abbr + '|')) { conflict = true; break; }
+                    if (c3.paired && c3.paired._teacherKey && c3.paired._teacherKey.startsWith(displaced.abbr + '|')) { conflict = true; break; }
+                  }
+                  if (conflict) continue;
+                }
+                // Move displaced course to empty slot
+                grid[d2][p2][ci] = displaced;
+                moved = true;
+              }
+            }
+            if (moved) {
+              grid[bestDisplaceSlot.d][bestDisplaceSlot.p][ci] = {
+                sub: entry.subject, abbr: entry.info.abbr, oddEven: entry.info.oddEven,
+                _teacherKey: teacherKey(entry.info.abbr, entry.classNum)
+              };
+            }
           }
       }
     });
@@ -2439,7 +2506,7 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
     const remainingSorted = Object.values(remainingGroups2).sort((a,b) => {
       return b.reduce((s,e)=>s+e.hours,0) - a.reduce((s,e)=>s+e.hours,0);
     }).flat();
-    placeEntries(remainingSorted);  // Phase 2: retry remaining
+    placeEntries(remainingSorted, true);  // Phase 2: retry remaining with relaxed constraints
   }
 
   // Phase 3: final desperate pass (same grouping)
@@ -2465,7 +2532,7 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
     const remaining2Sorted = Object.values(remaining2Groups).sort((a,b) => {
       return b.reduce((s,e)=>s+e.hours,0) - a.reduce((s,e)=>s+e.hours,0);
     }).flat();
-    placeEntries(remaining2Sorted);  // Phase 3: final retry
+    placeEntries(remaining2Sorted, true);  // Phase 3: final retry with relaxed constraints
   }
 
   // Phase 4: Swap mechanism — for still-unplaced courses, try relocating conflicting courses
@@ -2654,6 +2721,161 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
     });
     if (chainPlaced > 0) console.log('[排课] 连锁重排成功排入', chainPlaced, '节课');
   }
+
+  // Phase 5: Deep backtracking — CSP-style backtracking search for remaining unplaced
+  (function(){
+    const remaining5 = [];
+    classNums.forEach(c => {
+      const cDemand = demand[String(c)];
+      if (!cDemand) return;
+      Object.entries(cDemand).forEach(([dk, info]) => {
+        if (!info || info.typeMode === '走班' || !info.subject) return;
+        let cnt = 0;
+        const ci = c - 1;
+        if (ci >= 0 && ci < N) {
+          for (let d = 0; d < 5; d++) for (let p = 0; p < ppd; p++) {
+            const cell = grid[d] && grid[d][p] ? grid[d][p][ci] : null;
+            if (cell && cell.sub === info.subject && cell.abbr === info.abbr) cnt++;
+            if (cell && cell.paired && cell.paired.sub === info.subject && cell.paired.abbr === info.abbr) cnt++;
+          }
+        }
+        for (let h = 0; h < info.hours - cnt; h++) {
+          remaining5.push({ classNum: c, subject: info.subject, info });
+        }
+      });
+    });
+    if (!remaining5.length) return;
+    console.log('[排课] Phase 5 回溯搜索:', remaining5.length, '条');
+
+    function canPlaceAt(d, p, ci, info) {
+      if (m && m.enabled && d === m.day && p === m.period) return false;
+      if (info.allowedSlots && info.allowedSlots.length > 0 && !info.allowedSlots.includes(p + 1)) return false;
+      const existing = grid[d][p][ci];
+      if (existing) return false;
+      if (info.abbr) {
+        for (let ci2 = 0; ci2 < N; ci2++) {
+          if (ci2 === ci) continue;
+          const c2 = grid[d][p][ci2];
+          if (!c2) continue;
+          if (c2._teacherKey && c2._teacherKey.startsWith(info.abbr + '|')) return false;
+          if (c2.paired && c2.paired._teacherKey && c2.paired._teacherKey.startsWith(info.abbr + '|')) return false;
+        }
+      }
+      return true;
+    }
+
+    function findEmptyForCourse(info, skipD, skipP, ci) {
+      for (let d = 0; d < 5; d++) for (let p = 0; p < ppd; p++) {
+        if (d === skipD && p === skipP) continue;
+        if (canPlaceAt(d, p, ci, info)) return { d, p };
+      }
+      return null;
+    }
+
+    function btTryPlace(entry, maxDepth) {
+      const ci = entry.classNum - 1;
+      if (ci < 0 || ci >= N) return false;
+      for (let d = 0; d < 5; d++) {
+        for (let p = 0; p < ppd; p++) {
+          if (canPlaceAt(d, p, ci, entry.info)) {
+            grid[d][p][ci] = { sub: entry.subject, abbr: entry.info.abbr, oddEven: entry.info.oddEven, _teacherKey: teacherKey(entry.info.abbr, entry.classNum) };
+            return true;
+          }
+          if (maxDepth <= 0) continue;
+          const existing = grid[d][p][ci];
+          if (!existing || existing.paired) continue;
+          // Check if only reason we can't place is the existing course (no cross-class teacher conflict)
+          let crossConflict = false;
+          if (entry.info.abbr) {
+            for (let ci2 = 0; ci2 < N; ci2++) {
+              if (ci2 === ci) continue;
+              const c2 = grid[d][p][ci2];
+              if (!c2) continue;
+              if (c2._teacherKey && c2._teacherKey.startsWith(entry.info.abbr + '|')) { crossConflict = true; break; }
+              if (c2.paired && c2.paired._teacherKey && c2.paired._teacherKey.startsWith(entry.info.abbr + '|')) { crossConflict = true; break; }
+            }
+          }
+          if (crossConflict) continue;
+          // Try displacing existing course
+          if (m && m.enabled && d === m.day && p === m.period) continue;
+          if (entry.info.allowedSlots && entry.info.allowedSlots.length > 0 && !entry.info.allowedSlots.includes(p + 1)) continue;
+          const altSlot = findEmptyForCourse(existing, d, p, ci);
+          if (altSlot) {
+            grid[altSlot.d][altSlot.p][ci] = existing;
+            grid[d][p][ci] = { sub: entry.subject, abbr: entry.info.abbr, oddEven: entry.info.oddEven, _teacherKey: teacherKey(entry.info.abbr, entry.classNum) };
+            return true;
+          }
+          if (maxDepth >= 2) {
+            for (let d2 = 0; d2 < 5; d2++) {
+              for (let p2 = 0; p2 < ppd; p2++) {
+                if (d2 === d && p2 === p) continue;
+                const occupant = grid[d2][p2][ci];
+                if (!occupant || occupant.paired) continue;
+                // Check if existing can go to (d2,p2) — only blocked by occupant at ci
+                if (existing.abbr) {
+                  let teacherOk = true;
+                  for (let ci3 = 0; ci3 < N; ci3++) {
+                    if (ci3 === ci) continue;
+                    const c3 = grid[d2][p2][ci3];
+                    if (!c3) continue;
+                    if (c3._teacherKey && c3._teacherKey.startsWith(existing.abbr + '|')) { teacherOk = false; break; }
+                    if (c3.paired && c3.paired._teacherKey && c3.paired._teacherKey.startsWith(existing.abbr + '|')) { teacherOk = false; break; }
+                  }
+                  if (!teacherOk) continue;
+                }
+                if (m && m.enabled && d2 === m.day && p2 === m.period) continue;
+                // Try moving occupant to empty
+                const alt2 = findEmptyForCourse(occupant, d2, p2, ci);
+                if (alt2) {
+                  grid[alt2.d][alt2.p][ci] = occupant;
+                  grid[d2][p2][ci] = existing;
+                  grid[d][p][ci] = { sub: entry.subject, abbr: entry.info.abbr, oddEven: entry.info.oddEven, _teacherKey: teacherKey(entry.info.abbr, entry.classNum) };
+                  return true;
+                }
+                // 3-level deep
+                if (maxDepth >= 3) {
+                  for (let d3 = 0; d3 < 5; d3++) {
+                    for (let p3 = 0; p3 < ppd; p3++) {
+                      if ((d3 === d2 && p3 === p2) || (d3 === d && p3 === p)) continue;
+                      const occ2 = grid[d3][p3][ci];
+                      if (!occ2 || occ2.paired) continue;
+                      if (occupant.abbr) {
+                        let tok = true;
+                        for (let ci4 = 0; ci4 < N; ci4++) {
+                          if (ci4 === ci) continue;
+                          const c4 = grid[d3][p3][ci4];
+                          if (!c4) continue;
+                          if (c4._teacherKey && c4._teacherKey.startsWith(occupant.abbr + '|')) { tok = false; break; }
+                          if (c4.paired && c4.paired._teacherKey && c4.paired._teacherKey.startsWith(occupant.abbr + '|')) { tok = false; break; }
+                        }
+                        if (!tok) continue;
+                      }
+                      if (m && m.enabled && d3 === m.day && p3 === m.period) continue;
+                      const alt3 = findEmptyForCourse(occ2, d3, p3, ci);
+                      if (alt3) {
+                        grid[alt3.d][alt3.p][ci] = occ2;
+                        grid[d3][p3][ci] = occupant;
+                        grid[d2][p2][ci] = existing;
+                        grid[d][p][ci] = { sub: entry.subject, abbr: entry.info.abbr, oddEven: entry.info.oddEven, _teacherKey: teacherKey(entry.info.abbr, entry.classNum) };
+                        return true;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      return false;
+    }
+
+    let btPlaced = 0;
+    remaining5.forEach(entry => {
+      if (btTryPlace(entry, 3)) btPlaced++;
+    });
+    if (btPlaced > 0) console.log('[排课] Phase 5 回溯搜索成功排入', btPlaced, '节课');
+  })();
 
   // Helper: walk day dispersion helpers
   function walkSubjOnDay(subj, d) {
