@@ -2474,9 +2474,9 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
   // Phase 4: Walk classes with dispersion & co-period fallback for overflow classes
   const walkEntries=[];
   classNums.forEach(c=>{
-    Object.entries(demand[String(c)]).forEach(([subj,info])=>{
+    Object.entries(demand[String(c)]).forEach(([dk,info])=>{
       if (info.typeMode!=='走班') return;
-      walkEntries.push({classNum:c,subject:subj,info,hours:info.hours});
+      walkEntries.push({classNum:c,subject:info.subject,info,hours:info.hours});
     });
   });
   walkEntries.sort((a,b)=>b.hours-a.hours);
