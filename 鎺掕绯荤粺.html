@@ -2053,7 +2053,7 @@ function runScheduling() {
 
   // Multi-restart for best result
   let best = null;
-  for (let r=0;r<80;r++) {
+  for (let r=0;r<120;r++) {
     const res = scheduleOnce(demand, classNums, N, ppd, m, r);
     if (!best||res.placed>best.placed) best=res;
     if (res.unplaced===0) break;
@@ -2118,11 +2118,15 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
   });
   // Sort each teacher's entries by hours desc; prioritize odd/even pairing only when overflow is detected later.
   Object.values(teacherGroups).forEach(g => g.sort((a,b) => b.hours - a.hours));
-  // Sort teacher groups by total hours desc (most demanding teachers first)
+  // Sort teacher groups: primary=total hours desc, secondary=number of classes desc (more constrained first)
   const sortedGroups = Object.values(teacherGroups).sort((a,b) => {
     const sumA = a.reduce((s,e) => s+e.hours, 0);
     const sumB = b.reduce((s,e) => s+e.hours, 0);
-    return sumB - sumA;
+    if (sumB !== sumA) return sumB - sumA;
+    // Tiebreak: teacher with more distinct classes is harder to schedule
+    const classesA = new Set(a.map(e=>e.classNum)).size;
+    const classesB = new Set(b.map(e=>e.classNum)).size;
+    return classesB - classesA;
   });
   // Shuffle within same-total-hours groups for variety across restarts
   let rng=seed;
@@ -2180,17 +2184,23 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
               if (evenE.info.abbr && cell.paired && cell.paired._teacherKey && cell.paired._teacherKey.startsWith(evenE.info.abbr + '|')) { conflict = true; break; }
             }
             if (conflict) continue;
-            // Score: prefer days with fewer classes for both teachers
+            // Score: prefer days with fewer classes for both teachers, and balance across days
             let score = 0;
             if (oddE.info.abbr) {
               const tdc = tCountOnDay(oddE.info.abbr, d, grid, N, ppd);
-              score += (4 - tdc) * 4;
+              score += (4 - tdc) * 5;
+              // Prefer days where teacher has no classes yet (stronger dispersion)
+              if (tdc === 0) score += 8;
             }
             if (evenE.info.abbr && evenE.info.abbr !== oddE.info.abbr) {
               const tdc2 = tCountOnDay(evenE.info.abbr, d, grid, N, ppd);
-              score += (4 - tdc2) * 4;
+              score += (4 - tdc2) * 5;
+              if (tdc2 === 0) score += 8;
             }
-            score -= Math.abs(p - ppd / 2) * 0.15;
+            // Prefer middle periods
+            score -= Math.abs(p - ppd / 2) * 0.2;
+            // Prefer morning for main subjects
+            if (p < Math.ceil(ppd/2)) score += 1;
             if (score > bestScore) { bestScore = score; bestSlot = { d, p }; }
           }
         }
@@ -2236,10 +2246,11 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
             if (!slotOk(d,p,entry.classNum,entry.info,grid,N,ppd,m,true)) continue;
             let score=0;
 
-            // Subject per-day cap: prefer ≤2, heavy penalty at 3+
+            // Subject per-day cap: prefer ≤2, allow3 in emergency, block at4+
             const subjToday = subjCountOnDay(entry.subject,entry.classNum,d,grid,N,ppd,entry.info.oddEven);
-            if (subjToday >= 3) score -= 100;   // very heavy penalty but not hard skip
-            else if (subjToday >= 2) score -= 20;
+            if (subjToday >= 4) score -= 200;   // hard block at4+
+            else if (subjToday >= 3) score -= 30; // allow3 but penalize
+            else if (subjToday >= 2) score -= 15;
             else if (subjToday >= 1) score -= 2;
 
             // 0) Pairing: if cell has an existing odd/even/flex course that we can pair with
@@ -2253,11 +2264,13 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
             // 1) Teacher weekly dispersion: prefer days where teacher has fewer classes
             const tDayCount = tCountOnDay(entry.info.abbr,d,grid,N,ppd);
             score += (4 - tDayCount) * 4;  // incentive to use underused days
+            // Strong bonus for completely free days (promotes5-day spread)
+            if (tDayCount === 0) score += 6;
 
             //    Penalty for high daily teacher load (based on reference: 4/day is normal)
-            if (tDayCount >= 6) score -= 30;
-            else if (tDayCount >= 5) score -= 10;
-            else if (tDayCount >= 4) score -= 3;
+            if (tDayCount >= 6) score -= 50;
+            else if (tDayCount >= 5) score -= 20;
+            else if (tDayCount >= 4) score -= 8;
 
             // 2) Teacher day balance: compare to other days
             //    Find the day with the fewest teacher classes
@@ -2459,6 +2472,112 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
     });
     if (swapPlaced > 0) console.log('[排课] 交换机制成功排入', swapPlaced, '节课');
     else console.log('[排课] 交换机制未找到可用交换');
+  }
+
+  // Phase 4.5: Chain relocation — try2-3 step chain moves for remaining unplaced
+  const remaining4 = [];
+  remaining3.forEach(entry => {
+    if (!entry || typeof entry.hours !== 'number') return;
+    let placed = 0;
+    for (let d=0;d<5;d++) for (let p=0;p<ppd;p++) {
+      const cell = grid[d][p][entry.classNum-1];
+      if (cell&&cell.sub===entry.subject&&cell.abbr===entry.info.abbr) placed++;
+      if (cell&&cell.paired&&cell.paired.sub===entry.subject&&cell.paired.abbr===entry.info.abbr) placed++;
+    }
+    for (let h=0; h < entry.hours - placed; h++) remaining4.push({...entry, hours:1});
+  });
+  console.log('[排课] Phase 4.5 连锁重排:', remaining4.length, '条');
+
+  if (remaining4.length) {
+    let chainPlaced = 0;
+    remaining4.forEach(entry => {
+      if (!entry || !entry.info) return;
+      if (chainPlaced > 0 && remaining4.length > 50) return; // limit chain attempts for performance
+      let placed = false;
+      for (let d=0; d<5 && !placed; d++) {
+        for (let p=0; p<ppd && !placed; p++) {
+          if (m&&m.enabled&&d===m.day&&p===m.period) continue;
+          const ci = entry.classNum-1;
+          if (grid[d][p][ci]) continue;
+          if (entry.info.allowedSlots&&entry.info.allowedSlots.length>0&&!entry.info.allowedSlots.includes(p+1)) continue;
+
+          // Check teacher conflicts
+          let conflictCi = -1;
+          if (entry.info.abbr) {
+            for (let ci2=0; ci2<N; ci2++) {
+              if (ci2===ci) continue;
+              const cell = grid[d][p][ci2];
+              if (!cell) continue;
+              if (cell._teacherKey&&cell._teacherKey.startsWith(entry.info.abbr+'|')) { conflictCi=ci2; break; }
+              if (cell.paired&&cell.paired._teacherKey&&cell.paired._teacherKey.startsWith(entry.info.abbr+'|')) { conflictCi=ci2; break; }
+            }
+          }
+
+          if (conflictCi < 0) {
+            grid[d][p][ci] = {sub:entry.subject,abbr:entry.info.abbr,oddEven:entry.info.oddEven,_teacherKey:teacherKey(entry.info.abbr,entry.classNum)};
+            chainPlaced++; placed = true;
+          } else {
+            // Try2-step chain: move conflict to empty slot, then place entry
+            const conflictCell = grid[d][p][conflictCi];
+            if (!conflictCell || conflictCell.paired) continue;
+            for (let d2=0; d2<5 && !placed; d2++) {
+              for (let p2=0; p2<ppd && !placed; p2++) {
+                if (d2===d && p2===p) continue;
+                if (m&&m.enabled&&d2===m.day&&p2===m.period) continue;
+                if (grid[d2][p2][conflictCi]) continue;
+                // Check if conflict teacher can go to (d2,p2) — also check2nd hop
+                let canMove = true;
+                if (conflictCell.abbr) {
+                  for (let ci3=0; ci3<N; ci3++) {
+                    if (ci3===conflictCi) continue;
+                    const cell3 = grid[d2][p2][ci3];
+                    if (!cell3) continue;
+                    if (cell3._teacherKey&&cell3._teacherKey.startsWith(conflictCell.abbr+'|')) { canMove=false; break; }
+                    if (cell3.paired&&cell3.paired._teacherKey&&cell3.paired._teacherKey.startsWith(conflictCell.abbr+'|')) { canMove=false; break; }
+                  }
+                }
+                if (!canMove) continue;
+                // Try3-step: check if d2,p2's existing cell in same class can move
+                const chainCell = grid[d2][p2][ci]; // same target class at destination
+                if (chainCell) {
+                  // Need to move chainCell out first
+                  for (let d3=0; d3<5 && !placed; d3++) {
+                    for (let p3=0; p3<ppd && !placed; p3++) {
+                      if ((d3===d&&p3===p)||(d3===d2&&p3===p2)) continue;
+                      if (m&&m.enabled&&d3===m.day&&p3===m.period) continue;
+                      if (grid[d3][p3][ci]) continue;
+                      // Check chainCell teacher at d3,p3
+                      let chainOk = true;
+                      if (chainCell.abbr) {
+                        for (let ci4=0; ci4<N; ci4++) {
+                          if (ci4===ci) continue;
+                          const c4 = grid[d3][p3][ci4];
+                          if (!c4) continue;
+                          if (c4._teacherKey&&c4._teacherKey.startsWith(chainCell.abbr+'|')) { chainOk=false; break; }
+                          if (c4.paired&&c4.paired._teacherKey&&c4.paired._teacherKey.startsWith(chainCell.abbr+'|')) { chainOk=false; break; }
+                        }
+                      }
+                      if (!chainOk) continue;
+                      // Execute3-step chain
+                      grid[d3][p3][ci] = chainCell;
+                      grid[d2][p2][conflictCi] = conflictCell;
+                      grid[d][p][ci] = {sub:entry.subject,abbr:entry.info.abbr,oddEven:entry.info.oddEven,_teacherKey:teacherKey(entry.info.abbr,entry.classNum)};
+                      chainPlaced++; placed = true;
+                    }
+                  }
+                } else {
+                  // Simple2-step: move conflict to empty, place entry
+                  grid[d2][p2][conflictCi] = conflictCell;
+                  grid[d][p][ci] = {sub:entry.subject,abbr:entry.info.abbr,oddEven:entry.info.oddEven,_teacherKey:teacherKey(entry.info.abbr,entry.classNum)};
+                  chainPlaced++; placed = true;
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+    if (chainPlaced > 0) console.log('[排课] 连锁重排成功排入', chainPlaced, '节课');
   }
 
   // Helper: walk day dispersion helpers
