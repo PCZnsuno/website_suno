@@ -1807,6 +1807,81 @@ function renderSchedule() {
     html += '</div>';
   }
 
+  // Missing courses analysis
+  const missingRows = [];
+  state.subjects.forEach(subj => {
+    (state.teachers[subj.name] || []).forEach(t => {
+      Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
+        const ct = state.classTypes[parseInt(ti)];
+        if (!ct) return;
+        cls.forEach(cn => {
+          const expected = getClassHours(t, cn);
+          if (expected <= 0) return;
+          // Count actually placed hours for this subject+teacher in this class
+          let placed = 0;
+          const ci = cn - 1;
+          if (ci >= 0 && ci < N) {
+            for (let d = 0; d < 5; d++) {
+              for (let p = 0; p < ppd; p++) {
+                const row = grid[d] && grid[d][p];
+                if (!row) continue;
+                const cell = row[ci];
+                if (!cell) continue;
+                if (cell.sub === subj.name && cell.abbr === t.abbr) placed++;
+                if (cell.paired && cell.paired.sub === subj.name && cell.paired.abbr === t.abbr) placed++;
+              }
+            }
+          }
+          // Also count walkGrid if this class type is走班
+          if (ct.mode === '走班') {
+            for (let d = 0; d < 5; d++) {
+              for (let p = 0; p < ppd; p++) {
+                const w = walkGrid[d] && walkGrid[d][p];
+                if (w && w.sub === subj.name && w.abbr === t.abbr) placed++;
+              }
+            }
+          }
+          const gap = expected - placed;
+          if (gap > 0) {
+            missingRows.push({ subject: subj.name, teacher: t.name, abbr: t.abbr, classNum: cn, expected, placed, gap, typeName: ct.name, weekType: ct.weekType });
+          }
+        });
+      });
+    });
+  });
+
+  if (missingRows.length) {
+    html += '<div style="margin-top:14px;padding:12px;background:rgba(243,156,18,0.05);border-radius:var(--radius);border:1px solid rgba(243,156,18,0.2);">';
+    html += '<div style="font-weight:600;color:var(--warning);margin-bottom:8px;font-size:0.88rem;">未排满课程清单（共 ' + missingRows.length + ' 项）</div>';
+    html += '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:0.8rem;">';
+    html += '<thead><tr>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:left;font-weight:600;">科目</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:left;font-weight:600;">教师</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">班级</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">班种</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">周类型</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">应排</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">已排</th>';
+    html += '<th style="padding:5px 8px;background:var(--navy);color:rgba(255,255,255,0.9);text-align:center;font-weight:600;">缺</th>';
+    html += '</tr></thead><tbody>';
+    missingRows.forEach((r, idx) => {
+      const bg = idx % 2 === 0 ? 'rgba(243,156,18,0.03)' : 'transparent';
+      html += `<tr style="background:${bg}">`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);">${esc(r.subject)}</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);">${esc(r.teacher)}（${esc(r.abbr)}）</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-family:var(--font-garamond);font-weight:600;">${r.classNum}班</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-size:0.75rem;color:var(--text-secondary);">${esc(r.typeName)}</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-size:0.75rem;color:var(--text-secondary);">${esc(r.weekType)}</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-family:var(--font-garamond);">${r.expected}</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-family:var(--font-garamond);">${r.placed}</td>`;
+      html += `<td style="padding:5px 8px;border-bottom:1px solid var(--gray-100);text-align:center;font-family:var(--font-garamond);font-weight:700;color:var(--danger);">${r.gap}</td>`;
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += '<div style="margin-top:6px;font-size:0.75rem;color:var(--text-light);">以上为教师配置中有课时但未排入课表的课程，请根据实际情况手动调整。</div>';
+    html += '</div>';
+  }
+
   // Remarks
   html += `<div class="remarks-section">
     <label style="font-size:0.85rem;font-weight:600;color:var(--navy);">备注</label>
