@@ -3184,229 +3184,67 @@ async function ensureSheetJS() {
 }
 
 async function exportExcel() {
-  try {
-    await ensureSheetJS();
-  } catch (e) {
-    showToast('加载 SheetJS 失败，请检查网络', 'error');
+  if (!state.schedule) {
+    showToast('请先排课再导出', 'warning');
     return;
   }
-
-  const wb = XLSX.utils.book_new();
-
-  // Sheet 1: Teacher list
-  const teacherData = [['科目', '姓名', '简称', '任教班级', '固定课时', '待定课时', '总课时', '班种']];
-  state.subjects.forEach(subj => {
-    const teachers = state.teachers[subj.name] || [];
-    teachers.forEach(t => {
-      const classes = [];
-      const types = [];
-      Object.entries(t.classTypeAssignments || {}).forEach(([ti, cls]) => {
-        const ct = state.classTypes[parseInt(ti)];
-        if (!ct) return;
-        classes.push(ct.name + ':' + cls.join(','));
-        types.push(ct.name + '(' + ct.mode + ')');
-      });
-      let sumFixed = 0, sumPending = 0;
-      Object.values(t.classHours || {}).forEach(ch => {
-        if (typeof ch === 'number') { sumFixed += ch; }
-        else { sumFixed += ch.fixed || 0; sumPending += (ch.pending || 0) + (ch.single || 0) + (ch.double || 0); }
-      });
-      const totalH = sumFixed + sumPending;
-      teacherData.push([subj.name, t.name, t.abbr, classes.join(' | '), sumFixed, sumPending, totalH, types.join('，')]);
-    });
-  });
-  const ws1 = XLSX.utils.aoa_to_sheet(teacherData);
-  XLSX.utils.book_append_sheet(wb, ws1, '教师列表');
-
-  // Sheet 2: Schedule — matching web page layout exactly
-  if (state.schedule) {
-    const N = state.schedule.grid[0] && state.schedule.grid[0][0] ? state.schedule.grid[0][0].length : state.classCount;
-    const ppd = state.periodsPerDay;
-    const grid = state.schedule.grid;
-    const walkGrid = state.schedule.walkGrid;
-    const m = state.classMeeting;
-    const amEnd = Math.ceil(ppd / 2);
-    const colsPerDay = N + 1; // class columns + walk column
-    const totalCols = 1 + 5 * colsPerDay; // 1 for period label + 5 days
-
-    // Helper styles
-    const navyBg = { patternType: 'solid', fgColor: { rgb: '1B2A4A' } };
-    const goldBg = { patternType: 'solid', fgColor: { rgb: 'C89632' } };
-    const lightBg = { patternType: 'solid', fgColor: { rgb: 'F0F4FA' } };
-    const lunchBg = { patternType: 'solid', fgColor: { rgb: 'FFF8E7' } };
-    const meetingBg = { patternType: 'solid', fgColor: { rgb: 'FFF3E0' } };
-    const headerFont = { bold: true, color: { rgb: 'FFFFFF' }, sz: 11 };
-    const titleFont = { bold: true, sz: 14 };
-    const center = { horizontal: 'center', vertical: 'center' };
-    const thinBorder = { top: { style: 'thin', color: { rgb: 'D0D0D0' } }, bottom: { style: 'thin', color: { rgb: 'D0D0D0' } }, left: { style: 'thin', color: { rgb: 'D0D0D0' } }, right: { style: 'thin', color: { rgb: 'D0D0D0' } } };
-
-    function mkCell(v, opts) {
-      const c = { v: v, t: 's' };
-      if (opts) { if (opts.s) c.s = opts.s; if (opts.t) c.t = opts.t; }
-      return c;
-    }
-    function mkStyle(bg, font, align, border) {
-      const s = {};
-      if (bg) s.fill = bg;
-      if (font) s.font = font;
-      if (align) s.alignment = align;
-      if (border) s.border = border;
-      return s;
-    }
-
-    const aoa = [];
-    const merges = [];
-
-    // Row 0: Title
-    const titleRow = [];
-    titleRow[0] = mkCell('', mkStyle());
-    for (let i = 1; i < totalCols; i++) titleRow[i] = mkCell('', mkStyle());
-    titleRow[0] = mkCell('课程表', mkStyle(null, titleFont, { horizontal: 'center', vertical: 'center' }));
-    aoa.push(titleRow);
-    merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
-
-    // Row 1: Day headers (merged per day)
-    const row1 = [];
-    row1[0] = mkCell('节', mkStyle(navyBg, headerFont, center, thinBorder));
-    for (let d = 0; d < 5; d++) {
-      const startCol = 1 + d * colsPerDay;
-      row1[startCol] = mkCell(DAYS[d], mkStyle(navyBg, headerFont, center, thinBorder));
-      for (let j = 1; j < colsPerDay; j++) {
-        row1[startCol + j] = mkCell('', mkStyle(navyBg, headerFont, center, thinBorder));
-      }
-      merges.push({ s: { r: 1, c: startCol }, e: { r: 1, c: startCol + colsPerDay - 1 } });
-    }
-    aoa.push(row1);
-    // Merge period label across rows 1-2
-    merges.push({ s: { r: 1, c: 0 }, e: { r: 2, c: 0 } });
-
-    // Row 2: Class numbers + walk header
-    const row2 = [];
-    row2[0] = mkCell('', mkStyle(navyBg, headerFont, center, thinBorder));
-    for (let d = 0; d < 5; d++) {
+  showToast('正在生成Excel...', 'info');
+  const sched = state.schedule;
+  const N = sched.grid[0] && sched.grid[0][0] ? sched.grid[0][0].length : state.classCount;
+  // Serialize grid into plain objects
+  const plainGrid = [];
+  for (let d = 0; d < 5; d++) {
+    plainGrid[d] = [];
+    for (let p = 0; p < state.periodsPerDay; p++) {
+      plainGrid[d][p] = [];
       for (let ci = 0; ci < N; ci++) {
-        const col = 1 + d * colsPerDay + ci;
-        row2[col] = mkCell(String(ci + 1), mkStyle(navyBg, { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, center, thinBorder));
-      }
-      const walkCol = 1 + d * colsPerDay + N;
-      row2[walkCol] = mkCell('走班', mkStyle(goldBg, { bold: true, color: { rgb: 'FFFFFF' }, sz: 10 }, center, thinBorder));
-    }
-    aoa.push(row2);
-
-    // Data rows
-    let currentRow = 3;
-    for (let p = 0; p < ppd; p++) {
-      // Lunch break
-      if (p === amEnd) {
-        const lunchRow = [];
-        lunchRow[0] = mkCell('午休', mkStyle(lunchBg, { bold: true, italic: true, color: { rgb: 'C89632' } }, center, thinBorder));
-        for (let i = 1; i < totalCols; i++) lunchRow[i] = mkCell('', mkStyle(lunchBg, null, center, thinBorder));
-        aoa.push(lunchRow);
-        // Merge lunch across all day columns
-        for (let d = 0; d < 5; d++) {
-          merges.push({ s: { r: currentRow, c: 1 + d * colsPerDay }, e: { r: currentRow, c: 1 + d * colsPerDay + colsPerDay - 1 } });
+        const c = sched.grid[d][p][ci];
+        if (c) {
+          plainGrid[d][p][ci] = { sub: c.sub, abbr: c.abbr, oddEven: c.oddEven };
+          if (c.paired) plainGrid[d][p][ci].paired = { sub: c.paired.sub, abbr: c.paired.abbr, oddEven: c.paired.oddEven };
+        } else {
+          plainGrid[d][p][ci] = null;
         }
-        merges.push({ s: { r: currentRow, c: 0 }, e: { r: currentRow, c: 0 } });
-        currentRow++;
-      }
-
-      // Check if this period is class meeting
-      if (m && m.enabled && p === m.period) {
-        const meetRow = [];
-        const isPM = p >= amEnd;
-        meetRow[0] = mkCell((isPM ? '下' : '上') + (p + 1), mkStyle(lightBg, { bold: true, sz: 10 }, center, thinBorder));
-        for (let d = 0; d < 5; d++) {
-          const startCol = 1 + d * colsPerDay;
-          if (d === m.day) {
-            meetRow[startCol] = mkCell('班  会', mkStyle(meetingBg, { bold: true, color: { rgb: 'F39C12' }, sz: 11 }, center, thinBorder));
-            for (let j = 1; j < N; j++) {
-              meetRow[startCol + j] = mkCell('', mkStyle(meetingBg, null, center, thinBorder));
-            }
-            const walkColM = startCol + N;
-            meetRow[walkColM] = mkCell('', mkStyle(meetingBg, null, center, thinBorder));
-            merges.push({ s: { r: currentRow, c: startCol }, e: { r: currentRow, c: startCol + N - 1 } });
-          } else {
-            // Normal data for other days
-            for (let ci = 0; ci < N; ci++) {
-              const cell = grid[d] && grid[d][p] ? grid[d][p][ci] : null;
-              let cellText = '';
-              if (cell) {
-                cellText = (cell.sub || '') + (cell.abbr || '');
-                if (cell.oddEven) {
-                  const oeLabel = cell.oddEven === 'odd' ? '[单]' : cell.oddEven === 'even' ? '[双]' : '[待]';
-                  cellText = oeLabel + cellText;
-                }
-                if (cell.paired) {
-                  const pOE = cell.paired.oddEven === 'odd' ? '[单]' : '[双]';
-                  cellText += '\n' + pOE + (cell.paired.sub || '') + (cell.paired.abbr || '');
-                }
-              }
-              const col = startCol + ci;
-              meetRow[col] = mkCell(cellText, mkStyle(null, null, { horizontal: 'center', vertical: 'center', wrapText: true }, thinBorder));
-            }
-            const wCell = walkGrid[d] && walkGrid[d][p] ? walkGrid[d][p] : null;
-            const walkCol = startCol + N;
-            meetRow[walkCol] = mkCell(wCell ? (wCell.sub || '') + (wCell.abbr || '') : '', mkStyle(lightBg, null, center, thinBorder));
-          }
-        }
-        aoa.push(meetRow);
-        currentRow++;
-      } else {
-        // Normal period row
-        const isPM = p >= amEnd;
-        const row = [];
-        row[0] = mkCell((isPM ? '下' : '上') + (p + 1), mkStyle(lightBg, { bold: true, sz: 10 }, center, thinBorder));
-
-        for (let d = 0; d < 5; d++) {
-          const startCol = 1 + d * colsPerDay;
-          for (let ci = 0; ci < N; ci++) {
-            const cell = grid[d] && grid[d][p] ? grid[d][p][ci] : null;
-            let cellText = '';
-            if (cell) {
-              cellText = (cell.sub || '') + (cell.abbr || '');
-              if (cell.oddEven) {
-                const oeLabel = cell.oddEven === 'odd' ? '[单]' : cell.oddEven === 'even' ? '[双]' : '[待]';
-                cellText = oeLabel + cellText;
-              }
-              if (cell.paired) {
-                const pOE = cell.paired.oddEven === 'odd' ? '[单]' : '[双]';
-                cellText += '\n' + pOE + (cell.paired.sub || '') + (cell.paired.abbr || '');
-              }
-            }
-            const col = startCol + ci;
-            const rowBg = p % 2 === 0 ? lightBg : null;
-            row[col] = mkCell(cellText, mkStyle(rowBg, null, { horizontal: 'center', vertical: 'center', wrapText: true }, thinBorder));
-          }
-          const wCell = walkGrid[d] && walkGrid[d][p] ? walkGrid[d][p] : null;
-          const walkCol = startCol + N;
-          row[walkCol] = mkCell(wCell ? (wCell.sub || '') + (wCell.abbr || '') : '', mkStyle(lightBg, null, center, thinBorder));
-        }
-        aoa.push(row);
-        currentRow++;
       }
     }
-
-    const ws2 = XLSX.utils.aoa_to_sheet(aoa);
-    ws2['!merges'] = merges;
-
-    // Column widths
-    const colWidths = [{ wch: 5 }]; // period label column
-    for (let d = 0; d < 5; d++) {
-      for (let ci = 0; ci < N; ci++) colWidths.push({ wch: 9 });
-      colWidths.push({ wch: 9 }); // walk column
-    }
-    ws2['!cols'] = colWidths;
-
-    // Row heights
-    const rowHeights = [{ hpt: 28 }, { hpt: 22 }, { hpt: 20 }]; // title, header1, header2
-    for (let r = 3; r < currentRow; r++) rowHeights.push({ hpt: 36 });
-    ws2['!rows'] = rowHeights;
-
-    XLSX.utils.book_append_sheet(wb, ws2, '课程表');
   }
-
-  XLSX.writeFile(wb, '排课系统导出.xlsx');
-  showToast('导出成功', 'success');
+  const plainWalk = [];
+  for (let d = 0; d < 5; d++) {
+    plainWalk[d] = [];
+    for (let p = 0; p < state.periodsPerDay; p++) {
+      const w = sched.walkGrid[d] && sched.walkGrid[d][p];
+      plainWalk[d][p] = w ? { sub: w.sub, abbr: w.abbr } : null;
+    }
+  }
+  const payload = {
+    classCount: N,
+    periodsPerDay: state.periodsPerDay,
+    grid: plainGrid,
+    walkGrid: plainWalk,
+    meeting: state.classMeeting,
+    remarks: state.remarks || ''
+  };
+  try {
+    const resp = await fetch('/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!resp.ok) throw new Error(await resp.text());
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '排课系统导出.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('导出成功', 'success');
+  } catch (e) {
+    console.error('[导出] 错误:', e);
+    showToast('导出失败，请确保通过 server.py 启动（python server.py）', 'error');
+  }
 }
 
 /* ============================================================
