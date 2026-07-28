@@ -3304,7 +3304,15 @@ function scheduleOnce(demand, classNums, N, ppd, m, seed) {
 
   // Count results
   let placed=0;
-  for (let d=0;d<5;d++){for (let p=0;p<ppd;p++){for (let ci=0;ci<N;ci++)if(grid[d][p][ci])placed++;if(walkGrid[d][p])placed++;}}
+  for (let d=0;d<5;d++){
+    for (let p=0;p<ppd;p++){
+      for (let ci=0;ci<N;ci++){
+        const cell=grid[d][p][ci];
+        if(cell){ placed++; if(cell.paired) placed++; }
+      }
+      if(walkGrid[d][p]) placed++;
+    }
+  }
 
   const unplaced = classNums.reduce((s,c)=>s+Object.values(demand[String(c)]).reduce((a,v)=>a+v.hours,0),0)-placed;
 
