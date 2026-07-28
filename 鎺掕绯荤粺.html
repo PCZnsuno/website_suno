@@ -819,6 +819,112 @@ body {
 .toast.warning { background:var(--warning); }
 .toast.info { background:var(--info); }
 
+/* ===== GLOBAL CONTROL SIZING (Apple-style) ===== */
+
+/* Hide browser default number spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
+
+/* Custom number input with +/- buttons */
+.num-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.num-input-wrap:focus-within {
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 3px rgba(0,113,227,0.15);
+}
+.num-input-wrap button {
+  width: 36px;
+  height: 34px;
+  border: none;
+  background: rgba(0,0,0,0.03);
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  line-height: 1;
+  padding: 0;
+}
+.num-input-wrap button:hover {
+  background: rgba(0,113,227,0.08);
+}
+.num-input-wrap button:active {
+  background: rgba(0,113,227,0.15);
+}
+.num-input-wrap input {
+  width: 48px;
+  height: 34px;
+  border: none;
+  text-align: center;
+  font-size: 0.9rem;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  color: var(--text);
+  background: transparent;
+  outline: none;
+}
+
+/* Bigger toggle switches */
+.toggle-sm {
+  width: 44px !important; height: 24px !important; border-radius: 12px !important;
+}
+.toggle-sm-knob {
+  width: 20px !important; height: 20px !important; border-radius: 50% !important;
+  top: 2px !important; left: 2px !important;
+}
+.toggle-sm.on .toggle-sm-knob { left: 22px !important; }
+.toggle-track {
+  width: 44px !important; height: 24px !important; border-radius: 12px !important;
+}
+.toggle-thumb {
+  width: 20px !important; height: 20px !important; border-radius: 50% !important;
+  top: 2px !important; left: 2px !important;
+}
+.toggle-track.on .toggle-thumb { left: 22px !important; }
+
+/* Bigger nav buttons */
+.nav-btn { height: 36px !important; padding: 0 16px !important; font-size: 0.85rem !important; }
+
+/* Bigger modal buttons */
+.modal-btn { padding: 10px 24px !important; font-size: 0.9rem !important; border-radius: 10px !important; }
+
+/* Bigger selects and inputs globally */
+select, .type-select, .import-table select {
+  height: 34px !important; font-size: 0.85rem !important; padding: 0 10px !important;
+}
+.type-num-input {
+  height: 34px !important; font-size: 0.85rem !important;
+}
+
+/* Bigger hours table inputs */
+.hours-table input { width: 56px !important; height: 34px !important; font-size: 0.9rem !important; }
+.hours-table th, .hours-table td { padding: 8px 12px !important; }
+
+/* Bigger schedule table cells */
+.schedule-table th, .schedule-table td { padding: 3px 4px !important; }
+.class-cell { height: 54px !important; min-width: 38px !important; }
+.walk-col { height: 54px !important; min-width: 38px !important; }
+
+/* Better modal spacing */
+.modal-body { padding: 24px !important; }
+.modal-footer { padding: 14px 24px !important; }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width:768px) {
   .navbar { flex-wrap:wrap; height:auto; padding:10px 14px; gap:8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
@@ -3727,6 +3833,68 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+/* ===== CUSTOM NUMBER INPUT +/- BUTTONS ===== */
+(function() {
+  function wrapNumberInput(input) {
+    if (input.dataset.wrapped) return;
+    if (input.closest('.num-input-wrap')) return;
+    input.dataset.wrapped = '1';
+    const wrap = document.createElement('div');
+    wrap.className = 'num-input-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    const btnMinus = document.createElement('button');
+    btnMinus.type = 'button';
+    btnMinus.textContent = '−';
+    btnMinus.addEventListener('click', function() {
+      const min = parseInt(input.min) || 0;
+      const step = parseInt(input.step) || 1;
+      let val = parseInt(input.value) || 0;
+      val = Math.max(min, val - step);
+      input.value = val;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    const btnPlus = document.createElement('button');
+    btnPlus.type = 'button';
+    btnPlus.textContent = '+';
+    btnPlus.addEventListener('click', function() {
+      const max = parseInt(input.max);
+      const step = parseInt(input.step) || 1;
+      let val = parseInt(input.value) || 0;
+      val += step;
+      if (!isNaN(max)) val = Math.min(max, val);
+      input.value = val;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    wrap.appendChild(btnMinus);
+    wrap.appendChild(input);
+    wrap.appendChild(btnPlus);
+  }
+  function scanAndWrap() {
+    document.querySelectorAll('input[type="number"]:not([data-wrapped]):not(.navbar-input)').forEach(wrapNumberInput);
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { scanAndWrap(); observe(); });
+  } else {
+    scanAndWrap(); observe();
+  }
+  function observe() {
+    const obs = new MutationObserver(function(mutations) {
+      let needScan = false;
+      for (const m of mutations) {
+        for (const n of m.addedNodes) {
+          if (n.nodeType === 1) {
+            if (n.tagName === 'INPUT' && n.type === 'number') { needScan = true; break; }
+            if (n.querySelector && n.querySelector('input[type="number"]')) { needScan = true; break; }
+          }
+        }
+        if (needScan) break;
+      }
+      if (needScan) scanAndWrap();
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  }
+})();
 
 /* ===== GLOW EFFECT — Apple-style hover light follow ===== */
 (function() {
